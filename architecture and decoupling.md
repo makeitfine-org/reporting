@@ -58,22 +58,22 @@ C4Context
     Person(ops, "Ops Team", "Manages deployments, monitors system health")
 
     System_Boundary(monolith, "Core Banking Monolith (WAR on Tomcat)") {
-        Component(customer, "customer-module", "KYC & Customer Profiles")
-        Component(transaction, "transaction-module", "Payments & Transfers")
-        Component(product, "product-module", "Bank Products & Rates")
-        Component(notification, "notification-module", "Email / SMS")
-        Component(reporting, "reporting-module", "Reports & Dashboards")
+        System(customer, "customer-module", "KYC & Customer Profiles")
+        System(transaction, "transaction-module", "Payments & Transfers")
+        System(product, "product-module", "Bank Products & Rates")
+        System(notification, "notification-module", "Email / SMS")
+        System(reporting, "reporting-module", "Reports & Dashboards")
     }
 
     SystemDb(postgres, "PostgreSQL 13", "Single shared database — all modules share schema")
     System_Ext(smtp, "SMTP / SMS Gateway", "External notification delivery")
     System_Ext(settlement, "Interbank Settlement", "SWIFT / SEPA network")
 
-    Rel(bankAnalyst, monolith, "Uses", "HTTPS")
-    Rel(ops, monolith, "Deploys & Monitors", "SSH / Jenkins")
-    Rel(monolith, postgres, "Reads & Writes", "JDBC / Hibernate")
-    Rel(monolith, smtp, "Sends notifications", "SMTP / REST")
-    Rel(monolith, settlement, "Processes transactions", "REST / HTTPS")
+    Rel(bankAnalyst, reporting, "Uses", "HTTPS")
+    Rel(ops, customer, "Deploys & Monitors", "SSH / Jenkins")
+    Rel(reporting, postgres, "Reads & Writes", "JDBC / Hibernate")
+    Rel(notification, smtp, "Sends notifications", "SMTP / REST")
+    Rel(transaction, settlement, "Processes transactions", "REST / HTTPS")
 ```
 
 ### Module Dependency Diagram
