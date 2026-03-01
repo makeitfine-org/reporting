@@ -19,7 +19,7 @@
 
 ### Overview
 
-The platform was a Java 11 / Spring MVC monolith that had grown organically over six years. Originally built for a handful of internal users, it now served 800+ merchants processing tens of thousands of orders daily. The codebase lived in a single Maven multi-module project deployed as a WAR to bare-metal VMs running Tomcat, with a single PostgreSQL 13 database shared across all business domains.
+The platform was a Java 11 / Spring MVC monolith that had grown organically over six years. Originally built for a handful of internal users, it now served 500+ bank branches managing hundreds of thousands of customer daily financial transactions. The codebase lived in a single Maven multi-module project deployed as a WAR to bare-metal VMs running Tomcat, with a single PostgreSQL 13 database shared across all business domains.
 
 ### Technology Stack
 
@@ -42,11 +42,11 @@ The monolith was organized into five Maven modules, all sharing the same Spring 
 
 | Module | Responsibility |
 |---|---|
-| `user-module` | Authentication, user profiles, role management |
-| `order-module` | Checkout flow, cart, payment processing |
-| `inventory-module` | Product catalog, stock levels, pricing |
+| `customer-module` | KYC, customer profiles, authentication |
+| `transaction-module` | Payment processing, transfers, account management |
+| `product-module` | Bank product catalog, interest rates, terms |
 | `notification-module` | Email and SMS dispatch |
-| `reporting-module` | Financial reports, merchant dashboards, analytics |
+| `reporting-module` | Financial reports, banking dashboards, analytics |
 
 ### System Context Diagram
 
@@ -54,36 +54,36 @@ The monolith was organized into five Maven modules, all sharing the same Spring 
 C4Context
     title System Context — Monolith Era
 
-    Person(merchant, "Merchant", "Reviews sales reports and dashboards")
+    Person(bankAnalyst, "Branch Manager / Bank Analyst", "Reviews financial reports and dashboards")
     Person(ops, "Ops Team", "Manages deployments, monitors system health")
 
-    System_Boundary(monolith, "Commerce Monolith (WAR on Tomcat)") {
-        Component(user, "user-module", "Auth & Profiles")
-        Component(order, "order-module", "Orders & Payments")
-        Component(inventory, "inventory-module", "Catalog & Stock")
+    System_Boundary(monolith, "Core Banking Monolith (WAR on Tomcat)") {
+        Component(customer, "customer-module", "KYC & Customer Profiles")
+        Component(transaction, "transaction-module", "Payments & Transfers")
+        Component(product, "product-module", "Bank Products & Rates")
         Component(notification, "notification-module", "Email / SMS")
         Component(reporting, "reporting-module", "Reports & Dashboards")
     }
 
     SystemDb(postgres, "PostgreSQL 13", "Single shared database — all modules share schema")
     System_Ext(smtp, "SMTP / SMS Gateway", "External notification delivery")
-    System_Ext(payments, "Payment Gateway", "Stripe / Adyen")
+    System_Ext(settlement, "Interbank Settlement", "SWIFT / SEPA network")
 
-    Rel(merchant, monolith, "Uses", "HTTPS")
+    Rel(bankAnalyst, monolith, "Uses", "HTTPS")
     Rel(ops, monolith, "Deploys & Monitors", "SSH / Jenkins")
     Rel(monolith, postgres, "Reads & Writes", "JDBC / Hibernate")
     Rel(monolith, smtp, "Sends notifications", "SMTP / REST")
-    Rel(monolith, payments, "Processes payments", "REST / HTTPS")
+    Rel(monolith, settlement, "Processes transactions", "REST / HTTPS")
 ```
 
 ### Module Dependency Diagram
 
 ```mermaid
 graph TD
-    subgraph Monolith["Commerce Monolith (Maven WAR)"]
-        UM[user-module<br/>Auth · Profiles]
-        OM[order-module<br/>Checkout · Cart · Payments]
-        IM[inventory-module<br/>Catalog · Stock]
+    subgraph Monolith["Core Banking Monolith (Maven WAR)"]
+        UM[customer-module<br/>KYC · Profiles]
+        OM[transaction-module<br/>Payments · Transfers · Account Ops]
+        IM[product-module<br/>Bank Products · Rates · Terms]
         NM[notification-module<br/>Email · SMS]
         RM[reporting-module<br/>Reports · Dashboards]
     end
@@ -107,24 +107,24 @@ graph TD
     style DB fill:#4ecdc4,color:#fff
 ```
 
-> **Note:** The `reporting-module` had no service layer abstraction — it issued raw multi-table JOIN queries directly against the shared schema. This is where the pain began.
+> **Note:** The `reporting-module` had no service layer abstraction — it issued raw multi-table JOIN queries directly against the shared schema, spanning cross-domain joins across banking transaction, product, and customer data. This is where the pain began.
 
 ### The Pain: Report Generation Sequence
 
 ```mermaid
 sequenceDiagram
-    actor Merchant
+    actor BankAnalyst
     participant API as Spring MVC Controller<br/>(reporting-module)
     participant Service as ReportService
     participant DB as PostgreSQL 13<br/>(Shared Schema)
 
-    Merchant->>API: GET /reports/financial?month=2024-01
+    BankAnalyst->>API: GET /reports/financial?month=2024-01
     API->>Service: generateMonthlyFinancialReport(month)
 
     Service->>DB: BEGIN TRANSACTION
-    Service->>DB: SELECT o.*, p.*, i.*, u.*<br/>FROM orders o<br/>JOIN payments p ON ...<br/>JOIN order_items oi ON ...<br/>JOIN inventory i ON ...<br/>JOIN users u ON ...<br/>WHERE o.created_at BETWEEN ... (120s query)
+    Service->>DB: SELECT t.*, l.*, pr.*, c.*<br/>FROM transactions t<br/>JOIN loan_events l ON ...<br/>JOIN transaction_items ti ON ...<br/>JOIN products pr ON ...<br/>JOIN customers c ON ...<br/>WHERE t.transacted_at BETWEEN ... (120s query)
 
-    Note over DB: TABLE LOCK acquired<br/>on orders, payments,<br/>inventory tables
+    Note over DB: TABLE LOCK acquired<br/>on transactions, loan_events,<br/>products tables
 
     DB-->>Service: 500k+ rows returned
     Service->>Service: Aggregate in Java heap<br/>(group-by, sum, pivot)
@@ -133,9 +133,9 @@ sequenceDiagram
     Note over DB: Locks released — other<br/>modules unblocked
 
     Service-->>API: ReportDTO
-    API-->>Merchant: JSON response (after ~120 seconds)
+    API-->>BankAnalyst: JSON response (after ~120 seconds)
 
-    Note over Merchant,DB: During report generation:<br/>checkout is degraded,<br/>inventory updates are slow,<br/>DB CPU spikes to 95%
+    Note over BankAnalyst,DB: During report generation:<br/>transaction processing is degraded,<br/>product rate updates are slow,<br/>DB CPU spikes to 95%
 ```
 
 ---
@@ -146,18 +146,18 @@ sequenceDiagram
 
 By Q3 2023, the situation had deteriorated to the point of business risk:
 
-- **120-second report generation** caused browser timeouts for merchants — support tickets were piling up
-- **Monthly releases** meant bug fixes took weeks to ship; merchants were threatening to leave
-- **Table locks** during report queries caused checkout failures (revenue impact)
-- **Primary DB CPU spiked to 95%** during business hours when multiple merchants ran reports simultaneously
-- **A new real-time merchant dashboard** was on the product roadmap — impossible with the current architecture
+- **120-second report generation** caused browser timeouts for branch managers and compliance officers — support tickets were piling up
+- **Monthly releases** meant bug fixes took weeks to ship; compliance reporting SLAs were at risk
+- **Table locks** during report queries caused transaction processing failures (revenue impact)
+- **Primary DB CPU spiked to 95%** during business hours when multiple branches ran reports simultaneously
+- **A new real-time banking analytics dashboard** was on the product roadmap — impossible with the current architecture
 
-The mandate from engineering leadership: **extract the reporting domain into a standalone microservice without disrupting the existing monolith or merchant operations**.
+The mandate from engineering leadership: **extract the reporting domain into a standalone microservice without disrupting the existing monolith or banking operations**.
 
 ### Constraints
 
 - Zero downtime migration (the platform ran 24/7)
-- No monolith rewrite — the core e-commerce flow must remain stable
+- No monolith rewrite — the core transaction processing flow must remain stable
 - Historical data (3 years of transactions) must be available in the new service
 - Team of 4 backend engineers, 12-week timeline
 
@@ -169,8 +169,8 @@ The mandate from engineering leadership: **extract the reporting domain into a s
 
 The first step was a Domain-Driven Design workshop with the team and product owners. We mapped the reporting domain's ubiquitous language, entities, and aggregate boundaries:
 
-- **Reporting domain owns:** `Report`, `ReportSnapshot`, `MerchantMetrics`, `DashboardWidget`
-- **Reporting domain consumes (read-only):** `Order`, `Payment`, `Product`, `User` — but only as *read projections*, not authoritative state
+- **Reporting domain owns:** `Report`, `ReportSnapshot`, `ClientMetrics`, `DashboardWidget`
+- **Reporting domain consumes (read-only):** `Transaction`, `LoanEvent`, `BankProduct`, `Customer` — but only as *read projections*, not authoritative state
 - **Key insight:** Reporting is a pure *read model* domain. It never mutates orders or payments. This made it an ideal CQRS candidate.
 
 The reporting module had no legitimate reason to share a database with the transactional modules. Every cross-domain join was a symptom of missing domain boundaries.
@@ -181,7 +181,7 @@ Before writing a single line of new service code, we set up the routing infrastr
 
 ```mermaid
 graph LR
-    Merchant["Merchant Browser / API Client"]
+    Merchant["Bank Analyst / API Client"]
     Nginx["Nginx Reverse Proxy"]
     Monolith["Monolith (Tomcat WAR)"]
     NewService["Reporting Microservice (Spring Boot)"]
@@ -224,36 +224,36 @@ We instrumented the monolith's service layer with Kafka producers at key transac
 
 | Event | Published By | Payload |
 |---|---|---|
-| `OrderPlaced` | `OrderService.placeOrder()` | orderId, merchantId, items, totalAmount, timestamp |
-| `PaymentProcessed` | `PaymentService.processPayment()` | orderId, paymentId, amount, currency, status |
-| `OrderCancelled` | `OrderService.cancelOrder()` | orderId, merchantId, reason, timestamp |
-| `InventoryUpdated` | `InventoryService.updateStock()` | productId, merchantId, newStock, previousStock |
-| `RefundIssued` | `PaymentService.issueRefund()` | paymentId, orderId, amount, timestamp |
+| `TransactionCreated` | `TransactionService.processTransaction()` | transactionId, clientId, productType, amount, timestamp |
+| `LoanDisbursed` | `LoanService.disburseLoan()` | transactionId, loanId, amount, currency, status |
+| `TransactionReversed` | `TransactionService.cancelTransaction()` | transactionId, clientId, reason, timestamp |
+| `ProductRateUpdated` | `ProductService.updateProductRate()` | productId, clientId, newRate, previousRate |
+| `ChargebackProcessed` | `LoanService.processChargeback()` | loanId, transactionId, amount, timestamp |
 
-**Example Kafka producer added to monolith's `OrderService`:**
+**Example Kafka producer added to monolith's `TransactionService`:**
 
 ```java
 // Existing monolith code — minimal addition
 @Service
-public class OrderService {
+public class TransactionService {
 
     @Autowired
-    private OrderRepository orderRepository;
+    private TransactionRepository transactionRepository;
 
     // NEW: injected Kafka producer
     @Autowired
     private ReportingEventPublisher reportingEventPublisher;
 
     @Transactional
-    public Order placeOrder(PlaceOrderRequest request) {
-        Order order = orderRepository.save(buildOrder(request));
-        payment = paymentService.charge(order);
+    public Transaction processTransaction(ProcessTransactionRequest request) {
+        Transaction tx = transactionRepository.save(buildTransaction(request));
+        loanService.disburseLoan(tx);
 
         // Existing logic unchanged above
         // NEW: publish event after successful commit
-        reportingEventPublisher.publishOrderPlaced(order, payment);
+        reportingEventPublisher.publishTransactionCreated(tx);
 
-        return order;
+        return tx;
     }
 }
 ```
@@ -265,22 +265,22 @@ public class ReportingEventPublisher {
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
 
-    public void publishOrderPlaced(Order order, Payment payment) {
-        OrderPlacedEvent event = OrderPlacedEvent.builder()
-            .orderId(order.getId())
-            .merchantId(order.getMerchantId())
-            .totalAmount(order.getTotalAmount())
-            .currency(order.getCurrency())
-            .items(mapItems(order.getItems()))
+    public void publishTransactionCreated(Transaction tx) {
+        TransactionCreatedEvent event = TransactionCreatedEvent.builder()
+            .transactionId(tx.getId())
+            .clientId(tx.getClientId())
+            .amount(tx.getAmount())
+            .currency(tx.getCurrency())
+            .productType(tx.getProductType())
             .occurredAt(Instant.now())
             .build();
 
-        kafkaTemplate.send("reporting.order-placed", order.getMerchantId(), event);
+        kafkaTemplate.send("reporting.transaction-created", tx.getClientId(), event);
     }
 }
 ```
 
-Kafka topics used `merchantId` as the partition key — ensuring per-merchant ordering guarantees while allowing parallelism across merchants.
+Kafka topics used `clientId` as the partition key — ensuring per-client ordering guarantees while allowing parallelism across clients.
 
 ### Step 4 — Stand Up the Reporting Microservice
 
@@ -291,7 +291,7 @@ reporting-service/
 ├── src/main/java/com/company/reporting/
 │   ├── api/                    # REST controllers (OpenAPI)
 │   ├── application/            # Use cases / application services
-│   ├── domain/                 # Domain model (Report, MerchantMetrics)
+│   ├── domain/                 # Domain model (Report, ClientMetrics)
 │   ├── infrastructure/
 │   │   ├── kafka/              # Kafka consumers
 │   │   ├── elasticsearch/      # ES repositories & queries
@@ -336,38 +336,38 @@ reporting-service/
 
 ### Step 5 — Elasticsearch Read Model
 
-Instead of running joins against PostgreSQL, the new service materializes denormalized documents in Elasticsearch — one document per order enriched with all the data reporting needs:
+Instead of running joins against PostgreSQL, the new service materializes denormalized documents in Elasticsearch — one document per transaction enriched with all the data reporting needs:
 
-**Elasticsearch index mapping (`order_projections`):**
+**Elasticsearch index mapping (`transaction_projections`):**
 
 ```json
 {
   "mappings": {
     "properties": {
-      "orderId":       { "type": "keyword" },
-      "merchantId":    { "type": "keyword" },
-      "status":        { "type": "keyword" },
-      "totalAmount":   { "type": "double" },
-      "currency":      { "type": "keyword" },
-      "paymentStatus": { "type": "keyword" },
-      "placedAt":      { "type": "date" },
-      "items": {
+      "transactionId":  { "type": "keyword" },
+      "clientId":       { "type": "keyword" },
+      "status":         { "type": "keyword" },
+      "amount":         { "type": "double" },
+      "currency":       { "type": "keyword" },
+      "paymentStatus":  { "type": "keyword" },
+      "transactedAt":   { "type": "date" },
+      "productDetails": {
         "type": "nested",
         "properties": {
-          "productId":   { "type": "keyword" },
-          "productName": { "type": "keyword" },
-          "quantity":    { "type": "integer" },
-          "unitPrice":   { "type": "double" }
+          "productId":    { "type": "keyword" },
+          "productName":  { "type": "keyword" },
+          "amount":       { "type": "double" },
+          "interestRate": { "type": "double" }
         }
       },
-      "merchantName":  { "type": "keyword" },
-      "region":        { "type": "keyword" }
+      "clientName":     { "type": "keyword" },
+      "region":         { "type": "keyword" }
     }
   }
 }
 ```
 
-Aggregations like "total revenue by product category for merchant X in January" that previously required a 120s JOIN now execute as a single Elasticsearch aggregation query in under 200ms.
+Aggregations like "total interest income by product type for client X in January" that previously required a 120s JOIN now execute as a single Elasticsearch aggregation query in under 200ms.
 
 ### Step 6 — CQRS Implementation
 
@@ -376,9 +376,9 @@ The architecture cleanly separates commands from queries:
 ```mermaid
 graph TB
     subgraph CommandSide["Command Side (Monolith — unchanged)"]
-        OrderSvc["OrderService<br/>placeOrder()"]
-        PaySvc["PaymentService<br/>processPayment()"]
-        InvSvc["InventoryService<br/>updateStock()"]
+        OrderSvc["TransactionService<br/>processTransaction()"]
+        PaySvc["LoanService<br/>disburseLoan()"]
+        InvSvc["ProductService<br/>updateProductRate()"]
         MonolithDB[(PostgreSQL 13<br/>Transactional Data)]
 
         OrderSvc --> MonolithDB
@@ -390,7 +390,7 @@ graph TB
 
     subgraph QuerySide["Query Side (Reporting Microservice — new)"]
         Consumer["Kafka Consumers<br/>EventProjectionHandler"]
-        Projector["Projection Builder<br/>OrderProjection"]
+        Projector["Projection Builder<br/>TransactionProjection"]
         ES[(Elasticsearch<br/>Read Model)]
         Redis[(Redis<br/>Aggregation Cache)]
         API["REST API<br/>/reports/*"]
@@ -401,9 +401,9 @@ graph TB
         Redis --> API
     end
 
-    OrderSvc -->|"OrderPlaced event"| Kafka
-    PaySvc -->|"PaymentProcessed event"| Kafka
-    InvSvc -->|"InventoryUpdated event"| Kafka
+    OrderSvc -->|"TransactionCreated event"| Kafka
+    PaySvc -->|"LoanDisbursed event"| Kafka
+    InvSvc -->|"ProductRateUpdated event"| Kafka
     Kafka --> Consumer
 
     style CommandSide fill:#ffd43b,color:#000
@@ -415,39 +415,39 @@ graph TB
 
 ```java
 @Component
-public class OrderEventConsumer {
+public class TransactionEventConsumer {
 
     @Autowired
-    private OrderProjectionRepository projectionRepository;
+    private TransactionProjectionRepository projectionRepository;
 
     @KafkaListener(
-        topics = "reporting.order-placed",
+        topics = "reporting.transaction-created",
         groupId = "reporting-service",
         containerFactory = "reportingKafkaListenerFactory"
     )
-    public void handleOrderPlaced(OrderPlacedEvent event) {
-        OrderProjection projection = OrderProjection.builder()
-            .orderId(event.getOrderId())
-            .merchantId(event.getMerchantId())
-            .totalAmount(event.getTotalAmount())
+    public void handleTransactionCreated(TransactionCreatedEvent event) {
+        TransactionProjection projection = TransactionProjection.builder()
+            .transactionId(event.getTransactionId())
+            .clientId(event.getClientId())
+            .amount(event.getAmount())
             .currency(event.getCurrency())
-            .status("PLACED")
-            .placedAt(event.getOccurredAt())
-            .items(mapItems(event.getItems()))
+            .status("COMPLETED")
+            .transactedAt(event.getOccurredAt())
+            .productDetails(mapProductDetails(event.getProductType()))
             .build();
 
         projectionRepository.save(projection); // saves to Elasticsearch
     }
 
     @KafkaListener(
-        topics = "reporting.payment-processed",
+        topics = "reporting.loan-disbursed",
         groupId = "reporting-service"
     )
-    public void handlePaymentProcessed(PaymentProcessedEvent event) {
-        projectionRepository.findById(event.getOrderId())
+    public void handleLoanDisbursed(LoanDisbursedEvent event) {
+        projectionRepository.findById(event.getTransactionId())
             .ifPresent(projection -> {
                 projection.setPaymentStatus(event.getStatus());
-                projection.setPaymentId(event.getPaymentId());
+                projection.setPaymentId(event.getLoanId());
                 projectionRepository.save(projection);
             });
     }
@@ -471,7 +471,7 @@ sequenceDiagram
     participant DLQ as Dead Letter Queue<br/>(reporting.dlq)
     participant Alert as PagerDuty
 
-    Kafka->>Consumer: OrderPlaced event
+    Kafka->>Consumer: TransactionCreated event
 
     Consumer->>ES: Save projection
     alt ES available
@@ -498,23 +498,23 @@ public class HistoricalDataBackfillJob {
     private JdbcTemplate monolithJdbcTemplate; // read-only connection to monolith DB
 
     @Autowired
-    private OrderProjectionRepository projectionRepository;
+    private TransactionProjectionRepository projectionRepository;
 
-    // Runs once, in batches, idempotent (upsert by orderId)
+    // Runs once, in batches, idempotent (upsert by transactionId)
     @Scheduled(fixedDelay = Long.MAX_VALUE)
     public void backfill() {
         long offset = 0;
         int batchSize = 1000;
-        List<OrderProjection> batch;
+        List<TransactionProjection> batch;
 
         do {
             batch = monolithJdbcTemplate.query(
                 """
-                SELECT o.id, o.merchant_id, o.total_amount, o.currency,
-                       o.created_at, p.status as payment_status, p.id as payment_id
-                FROM orders o
-                LEFT JOIN payments p ON p.order_id = o.id
-                ORDER BY o.created_at
+                SELECT t.id, t.client_id, t.amount, t.currency,
+                       t.transacted_at, l.status as payment_status, l.id as loan_id
+                FROM transactions t
+                LEFT JOIN loan_events l ON l.transaction_id = t.id
+                ORDER BY t.transacted_at
                 LIMIT ? OFFSET ?
                 """,
                 (rs, rowNum) -> mapToProjection(rs),
@@ -534,7 +534,7 @@ The backfill completed in ~6 hours running at off-peak hours, with no impact to 
 
 ### Step 9 — Feature Flag / Traffic Cutover
 
-We used a simple feature flag (backed by Redis) to gradually shift report traffic from the monolith to the new service, independently per merchant:
+We used a simple feature flag (backed by Redis) to gradually shift report traffic from the monolith to the new service, independently per client:
 
 ```mermaid
 graph LR
@@ -543,8 +543,8 @@ graph LR
     Monolith["Monolith /reports/*<br/>(legacy)"]
     NewService["Reporting Microservice<br/>(new)"]
 
-    Nginx -->|"Check flag for merchantId"| FlagService
-    FlagService -->|"Flag = OFF (90% merchants)"| Monolith
+    Nginx -->|"Check flag for clientId"| FlagService
+    FlagService -->|"Flag = OFF (90% branches)"| Monolith
     FlagService -->|"Flag = ON (10% → 50% → 100%)"| NewService
 
     style NewService fill:#51cf66,color:#fff
@@ -553,14 +553,14 @@ graph LR
 
 **Rollout timeline:**
 
-| Week | % of Merchants on New Service | Notes |
+| Week | % of Branches / Clients on New Service | Notes |
 |---|---|---|
-| Week 1 | 5% | Internal test merchants only |
-| Week 2 | 20% | Small merchants (low volume) |
-| Week 3 | 50% | Mid-tier merchants |
+| Week 1 | 5% | Internal test branches only |
+| Week 2 | 20% | Low-volume branches |
+| Week 3 | 50% | Mid-tier branches |
 | Week 4 | 100% | Full cutover |
 
-Each phase included: SLO monitoring, latency comparison, error rate tracking. No merchant-reported issues during any phase.
+Each phase included: SLO monitoring, latency comparison, error rate tracking. No branch-reported issues during any phase.
 
 ### Step 10 — Decommission Reporting from Monolith
 
@@ -598,7 +598,7 @@ With 100% of traffic on the new service and metrics stable for two weeks, we rem
 ```mermaid
 graph TB
     subgraph Clients["Clients"]
-        Browser["Merchant Browser"]
+        Browser["Bank Analyst Browser"]
         MobileApp["Mobile App"]
         InternalBI["Internal BI Tools"]
     end
@@ -612,7 +612,7 @@ graph TB
         API["REST API Layer<br/>Spring MVC @RestController<br/>OpenAPI / Swagger"]
         AppSvc["Application Services<br/>ReportQueryService<br/>DashboardService"]
         CircuitBreaker["Resilience4j<br/>Circuit Breaker"]
-        KafkaConsumers["Kafka Consumers<br/>OrderEventConsumer<br/>PaymentEventConsumer"]
+        KafkaConsumers["Kafka Consumers<br/>TransactionEventConsumer<br/>LoanEventConsumer"]
         Projector["Projection Builder<br/>Denormalized read models"]
     end
 
@@ -622,13 +622,13 @@ graph TB
         PG[(PostgreSQL 15<br/>Report Config<br/>Scheduled Reports<br/>Alert Rules)]
     end
 
-    subgraph Monolith["Commerce Monolith (Tomcat)"]
-        MonolithCore["Core Business Logic<br/>Orders · Payments · Inventory"]
+    subgraph Monolith["Core Banking Monolith (Tomcat)"]
+        MonolithCore["Core Business Logic<br/>Transactions · Loans · Products"]
         MonolithDB[(PostgreSQL 13<br/>Transactional Data)]
         KafkaProducers["Kafka Producers<br/>(additive, non-breaking)"]
     end
 
-    Kafka{{"Apache Kafka<br/>reporting.order-placed<br/>reporting.payment-processed<br/>reporting.inventory-updated<br/>reporting.dlq"}}
+    Kafka{{"Apache Kafka<br/>reporting.transaction-created<br/>reporting.loan-disbursed<br/>reporting.product-rate-updated<br/>reporting.dlq"}}
 
     Observability["Prometheus + Grafana<br/>Loki (logs)"]
 
@@ -661,23 +661,23 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph Topics["Kafka Topics (3 partitions each, keyed by merchantId)"]
-        T1["reporting.order-placed"]
-        T2["reporting.payment-processed"]
-        T3["reporting.order-cancelled"]
-        T4["reporting.inventory-updated"]
-        T5["reporting.refund-issued"]
+    subgraph Topics["Kafka Topics (3 partitions each, keyed by clientId)"]
+        T1["reporting.transaction-created"]
+        T2["reporting.loan-disbursed"]
+        T3["reporting.transaction-reversed"]
+        T4["reporting.product-rate-updated"]
+        T5["reporting.chargeback-processed"]
         DLQ["reporting.dlq"]
     end
 
     subgraph ConsumerGroup["Consumer Group: reporting-service"]
-        C1["OrderEventConsumer<br/>@KafkaListener"]
-        C2["PaymentEventConsumer<br/>@KafkaListener"]
-        C3["InventoryEventConsumer<br/>@KafkaListener"]
+        C1["TransactionEventConsumer<br/>@KafkaListener"]
+        C2["LoanEventConsumer<br/>@KafkaListener"]
+        C3["ProductEventConsumer<br/>@KafkaListener"]
     end
 
     Validator["Schema Validator<br/>(Avro / JSON Schema)"]
-    Projector["Projection Merger<br/>Upsert by orderId"]
+    Projector["Projection Merger<br/>Upsert by transactionId"]
     ES[(Elasticsearch)]
     ErrorHandler["DeadLetterPublisher<br/>(after 3 retries)"]
 
@@ -705,13 +705,13 @@ graph LR
 
 ```mermaid
 graph TB
-    Query["API Request:<br/>GET /reports/revenue?merchantId=X&period=2024-01"]
+    Query["API Request:<br/>GET /reports/revenue?clientId=X&period=2024-01"]
 
     Cache{"Redis Cache<br/>Hit?"}
 
     CacheHit["Return cached result<br/>(TTL: 5 minutes)"]
 
-    ESQuery["Elasticsearch Aggregation Query<br/>index: order_projections<br/>filter: merchantId + date range<br/>agg: sum(totalAmount), count, avg"]
+    ESQuery["Elasticsearch Aggregation Query<br/>index: transaction_projections<br/>filter: clientId + date range<br/>agg: sum(amount), count, avg"]
 
     ESResult["Aggregation Result<br/>(~150ms)"]
 
@@ -738,7 +738,7 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    actor Merchant
+    actor BankAnalyst
     participant GW as API Gateway<br/>(Keycloak JWT)
     participant API as REST Controller
     participant Cache as Redis Cache
@@ -747,16 +747,16 @@ sequenceDiagram
     participant ES as Elasticsearch
     participant PG as PostgreSQL<br/>(Metadata)
 
-    Merchant->>GW: GET /reports/financial?month=2024-01
+    BankAnalyst->>GW: GET /reports/financial?month=2024-01
     GW->>GW: Validate JWT (Keycloak)
-    GW->>API: Authenticated request + merchantId claim
+    GW->>API: Authenticated request + clientId claim
 
-    API->>Cache: GET cache key (merchantId + period)
+    API->>Cache: GET cache key (clientId + period)
     alt Cache HIT
         Cache-->>API: Cached aggregation result
-        API-->>Merchant: 200 JSON (~10ms)
+        API-->>BankAnalyst: 200 JSON (~10ms)
     else Cache MISS
-        API->>AppSvc: getFinancialReport(merchantId, period)
+        API->>AppSvc: getFinancialReport(clientId, period)
         AppSvc->>PG: Load report config & currency settings
         PG-->>AppSvc: Config
 
@@ -768,10 +768,10 @@ sequenceDiagram
         AppSvc->>AppSvc: Enrich with trends & comparisons
         AppSvc->>Cache: SET result (TTL: 5 min)
         AppSvc-->>API: FinancialReportDTO
-        API-->>Merchant: 200 JSON (~200ms total)
+        API-->>BankAnalyst: 200 JSON (~200ms total)
     end
 
-    Note over Merchant,ES: Total p99 latency: < 2 seconds<br/>vs. 120 seconds in monolith
+    Note over BankAnalyst,ES: Total p99 latency: < 2 seconds<br/>vs. 120 seconds in monolith
 ```
 
 ### Kubernetes Deployment Topology
@@ -877,7 +877,7 @@ podDisruptionBudget:
 | Report generation time (p99) | 120 seconds | < 2 seconds | **98.3% faster** |
 | Primary DB CPU during reports | 95% | 55% | **42% reduction** |
 | DB table locks during reports | Frequent (3–5/day) | None | **Eliminated** |
-| Checkout error rate during reports | 0.8% | 0% | **Eliminated** |
+| Transaction processing error rate during reports | 0.8% | 0% | **Eliminated** |
 
 ### Operations
 
@@ -892,9 +892,9 @@ podDisruptionBudget:
 
 | Outcome | Details |
 |---|---|
-| Real-time merchant dashboard | New product feature — impossible before; launched 6 weeks after service went live |
-| Merchant churn reduction | 12% reduction in support tickets about report timeouts |
-| Revenue protection | Checkout degradation eliminated — estimated $50K/month in recovered revenue |
+| Real-time banking analytics dashboard | New product feature — impossible before; launched 6 weeks after service went live |
+| Compliance SLA improvement | 12% reduction in support tickets about report timeouts |
+| Transaction fee recovery | Transaction processing degradation eliminated — estimated $50K/month in recovered transaction fees |
 | Engineering velocity | Reporting team can now ship independently without coordinating monthly monolith releases |
 
 ### Grafana Dashboard (Key Metrics Tracked)
@@ -912,15 +912,15 @@ podDisruptionBudget:
 
 ### Why Elasticsearch over PostgreSQL read replica?
 
-A read replica would have reduced load on the primary but kept the same data model — still requiring expensive JOINs. Elasticsearch's denormalized document model and native aggregation engine were the right fit for analytics workloads. A single document per order (with nested items) eliminates joins entirely.
+A read replica would have reduced load on the primary but kept the same data model — still requiring expensive JOINs. Elasticsearch's denormalized document model and native aggregation engine were the right fit for analytics workloads. A single document per transaction (with nested product details) eliminates joins entirely.
 
 ### Why Kafka over direct API calls from monolith?
 
-Direct API calls would couple the monolith's transaction path to the reporting service's availability. Kafka decouples them temporally: the monolith's `placeOrder()` transaction completes immediately regardless of whether the reporting service is up. The event is buffered and processed when the consumer is ready.
+Direct API calls would couple the monolith's transaction path to the reporting service's availability. Kafka decouples them temporally: the monolith's `processTransaction()` call completes immediately regardless of whether the reporting service is up. The event is buffered and processed when the consumer is ready.
 
 ### Why CQRS over a shared database?
 
-A shared database creates invisible coupling — any schema change to `orders` could break the reporting module without a compilation error. CQRS gives the reporting service full autonomy over its data model (Elasticsearch documents), allowing it to evolve its read projections without negotiating schema changes with the order team.
+A shared database creates invisible coupling — any schema change to `transactions` could break the reporting module without a compilation error. CQRS gives the reporting service full autonomy over its data model (Elasticsearch documents), allowing it to evolve its read projections without negotiating schema changes with the transaction team.
 
 ### Why the Strangler Fig pattern over a Big Bang rewrite?
 

@@ -83,7 +83,8 @@
       "mcp__postgres-delivery__*",
       "Bash(git check-ignore -v settings.local.json 2>/dev/null; find . -name \"settings.local.json\" 2>/dev/null | head -20)",
       "Bash(git check-ignore -v .claude/settings.local.json)",
-      "Bash(git add CLAUDE.md \"architecture and decoupling.md\" && git commit -m \"docs: add reporting microservice architecture and decoupling guide\")"
+      "Bash(git add CLAUDE.md \"architecture and decoupling.md\" && git commit -m \"docs: add reporting microservice architecture and decoupling guide\")",
+      "Bash(git init && git add \"architecture and decoupling.md\" && git status)"
     ]
   }
 }
