@@ -86,7 +86,9 @@
       "Bash(git add CLAUDE.md \"architecture and decoupling.md\" && git commit -m \"docs: add reporting microservice architecture and decoupling guide\")",
       "Bash(git init && git add \"architecture and decoupling.md\" && git status)",
       "mcp__context7__query-docs",
-      "Bash(git add \"architecture and decoupling.md\" && git commit -m \"fix: repair C4Context diagram by targeting System nodes in Rel statements\")"
+      "Bash(git add \"architecture and decoupling.md\" && git commit -m \"fix: repair C4Context diagram by targeting System nodes in Rel statements\")",
+      "Bash(ls -lh \"/home/eug/dev/projects/my/reporting/\"*.md)",
+      "Bash(git add \"communication and ci-cd.md\" docs/3-twinkly-hatching-eich.md .claude/settings.local.json && git commit -m \"docs: add inter-service communication and CI/CD pipeline guide\")"
     ]
   }
 }
