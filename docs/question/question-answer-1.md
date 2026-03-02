@@ -137,3 +137,43 @@ That would reintroduce coupling — the reporting service would depend on the mo
 | Transaction projections (reporting data) | Elasticsearch | Aggregations, full-text, analytics |
 | Aggregation cache | Redis | Low-latency repeated queries |
 | Report config, schedules, alert rules | PostgreSQL 15 (metadata DB) | Relational, transactional, service-owned |
+
+---
+
+## Q5: What are "Transaction projections" in the context of the reporting microservice?
+
+A **projection** is a CQRS concept — a pre-built, read-optimized snapshot of data derived from events, shaped specifically for querying rather than for transactional writes.
+
+### The Problem It Solves
+In the monolith, when a report was requested, the system would go to the source-of-truth tables (`transactions`, `loan_events`, `products`, `customers`) and JOIN them together at query time — that's what took 120 seconds.
+
+A projection flips this: **instead of joining at read time, you pre-join at write time**. Every time a `TransactionCreated` or `LoanDisbursed` event arrives via Kafka, the reporting service builds and saves a single enriched document in ES:
+
+```json
+{
+  "transactionId": "tx-001",
+  "clientId": "client-42",
+  "amount": 5000.00,
+  "currency": "EUR",
+  "status": "COMPLETED",
+  "transactedAt": "2022-01-15T10:30:00Z",
+  "productDetails": {
+    "productId": "prod-7",
+    "productName": "Business Loan",
+    "interestRate": 4.5
+  },
+  "clientName": "Acme Corp",
+  "region": "EMEA"
+}
+```
+
+This document already contains everything reporting needs — no joins required at query time. It's a **projection** of reality as seen by the reporting domain.
+
+### Key Properties
+
+- **Derived, not authoritative** — the monolith's Postgres is still the source of truth; ES is a read-optimized copy
+- **Denormalized** — data from multiple source tables is flattened into one document
+- **Eventually consistent** — there's a small lag between a transaction happening and its projection appearing in ES (Kafka processing time)
+- **Owned by the reporting service** — the schema can evolve freely without touching the monolith
+
+The name comes directly from the code: `TransactionProjection`, `TransactionProjectionRepository`, `EventProjectionHandler`.
