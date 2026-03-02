@@ -19,7 +19,7 @@
 
 ### Overview
 
-The platform was a Java 11 / Spring MVC monolith that had grown organically over six years. Originally built for a handful of internal users, it now served 500+ bank branches managing hundreds of thousands of customer daily financial transactions. The codebase lived in a single Maven multi-module project deployed as a WAR to bare-metal VMs running Tomcat, with a single PostgreSQL 13 database shared across all business domains.
+The platform was a Java 11 / Spring MVC monolith that had grown organically over six years. Originally built for a handful of internal users, it now served 50+ bank branches managing hundreds of thousands of customer daily financial transactions. The codebase lived in a single Maven multi-module project deployed as a WAR to bare-metal VMs running Tomcat, with a single PostgreSQL 13 database shared across all business domains.
 
 ### Technology Stack
 

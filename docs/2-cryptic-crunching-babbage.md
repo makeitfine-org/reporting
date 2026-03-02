@@ -13,7 +13,7 @@ The technical architecture, patterns, metrics, and code structure remain identic
 | Current (E-commerce) | New (Banking) |
 |---|---|
 | Commerce Monolith | Core Banking Monolith |
-| 800+ merchants | 500+ bank branches |
+| 800+ merchants | 50+ bank branches |
 | Merchant (person) | Branch Manager / Bank Analyst (person) |
 | `merchantId` | `clientId` (partition key, per-client ordering) |
 | `order-module` (Checkout, cart, payments) | `transaction-module` (Payments, transfers, account ops) |
@@ -46,7 +46,7 @@ The technical architecture, patterns, metrics, and code structure remain identic
 
 ### Section 1 — Situation: The Monolith
 
-- Overview paragraph: replace "800+ merchants processing tens of thousands of orders daily" → "500+ bank branches managing millions of customer accounts and daily financial transactions"
+- Overview paragraph: replace "800+ merchants processing tens of thousands of orders daily" → "50+ bank branches managing hundreds of thousands of customer accounts and daily financial transactions"
 - Module table: rename `order-module` → `transaction-module` (desc: "Payment processing, transfers, account management"), `inventory-module` → `product-module` (desc: "Bank product catalog, interest rates, terms"), `user-module` → `customer-module` (desc: "KYC, customer profiles, authentication")
 - C4 diagram: Person `merchant` → `bankAnalyst` ("Branch Manager / Bank Analyst", "Reviews financial reports and dashboards"), "Commerce Monolith" → "Core Banking Monolith", external `payments` → `settlement` ("Interbank Settlement", "SWIFT / SEPA network"), update all component names to match new modules
 - Module dependency diagram: update node labels to match new module names
