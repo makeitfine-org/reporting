@@ -118,7 +118,7 @@ sequenceDiagram
     participant Service as ReportService
     participant DB as PostgreSQL 13<br/>(Shared Schema)
 
-    BankAnalyst->>API: GET /reports/financial?month=2024-01
+    BankAnalyst->>API: GET /reports/financial?month=2022-01
     API->>Service: generateMonthlyFinancialReport(month)
 
     Service->>DB: BEGIN TRANSACTION
@@ -144,7 +144,7 @@ sequenceDiagram
 
 ### Why This Became Urgent
 
-By Q3 2023, the situation had deteriorated to the point of business risk:
+By Q3 2021, the situation had deteriorated to the point of business risk:
 
 - **120-second report generation** caused browser timeouts for branch managers and compliance officers — support tickets were piling up
 - **Monthly releases** meant bug fixes took weeks to ship; compliance reporting SLAs were at risk
@@ -705,7 +705,7 @@ graph LR
 
 ```mermaid
 graph TB
-    Query["API Request:<br/>GET /reports/revenue?clientId=X&period=2024-01"]
+    Query["API Request:<br/>GET /reports/revenue?clientId=X&period=2022-01"]
 
     Cache{"Redis Cache<br/>Hit?"}
 
@@ -747,7 +747,7 @@ sequenceDiagram
     participant ES as Elasticsearch
     participant PG as PostgreSQL<br/>(Metadata)
 
-    BankAnalyst->>GW: GET /reports/financial?month=2024-01
+    BankAnalyst->>GW: GET /reports/financial?month=2022-01
     GW->>GW: Validate JWT (Keycloak)
     GW->>API: Authenticated request + clientId claim
 

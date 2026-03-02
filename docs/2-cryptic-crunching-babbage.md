@@ -136,12 +136,12 @@ The technical architecture, patterns, metrics, and code structure remain identic
   - Topics keyed: "keyed by merchantId" → "keyed by clientId"
 
 - Elasticsearch aggregation flow diagram:
-  - `GET /reports/revenue?merchantId=X&period=2024-01` → `GET /reports/revenue?clientId=X&period=2024-01`
+  - `GET /reports/revenue?merchantId=X&period=2022-01` → `GET /reports/revenue?clientId=X&period=2022-01`
   - `filter: merchantId + date range` → `filter: clientId + date range`
 
 - Real-time report sequence:
   - Actor label: `Merchant` → `BankAnalyst`
-  - `GET /reports/financial?month=2024-01` → same endpoint fine
+  - `GET /reports/financial?month=2022-01` → same endpoint fine
   - `getFinancialReport(merchantId, period)` → `getFinancialReport(clientId, period)`
   - Cache key: `merchantId + period` → `clientId + period`
   - Note: "Total p99 latency: < 2 seconds vs. 120 seconds in monolith" — unchanged

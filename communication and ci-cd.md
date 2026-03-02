@@ -375,7 +375,7 @@ sequenceDiagram
     CustSvc-->>TxSvc: 200 { "status": "APPROVED", "riskTier": "LOW" }
 
     TxSvc->>ProdSvc: GET /internal/products/{productId}/rate<br/>X-Correlation-Id: abc-123
-    ProdSvc-->>TxSvc: 200 { "interestRate": 4.75, "effectiveDate": "2024-01-01" }
+    ProdSvc-->>TxSvc: 200 { "interestRate": 4.75, "effectiveDate": "2022-01-01" }
 
     TxSvc->>TxDB: BEGIN TRANSACTION<br/>INSERT INTO transactions ...<br/>INSERT INTO loan_events ...
     TxDB-->>TxSvc: transactionId: tx-789
@@ -554,7 +554,7 @@ graph TB
   "currency": "EUR",
   "productId": "prod-mortgage-01",
   "productType": "MORTGAGE",
-  "occurredAt": "2024-01-15T10:30:00Z"
+  "occurredAt": "2022-01-15T10:30:00Z"
 }
 ```
 
@@ -579,7 +579,7 @@ graph TB
   "amount": 15000.00,
   "currency": "EUR",
   "status": "DISBURSED",
-  "occurredAt": "2024-01-15T10:30:05Z"
+  "occurredAt": "2022-01-15T10:30:05Z"
 }
 ```
 
@@ -601,7 +601,7 @@ graph TB
   "clientId": "cli-001",
   "correlationId": "abc-123",
   "reason": "DUPLICATE_PAYMENT",
-  "occurredAt": "2024-01-15T11:00:00Z"
+  "occurredAt": "2022-01-15T11:00:00Z"
 }
 ```
 
@@ -623,8 +623,8 @@ graph TB
   "correlationId": "abc-456",
   "previousRate": 4.50,
   "newRate": 4.75,
-  "effectiveDate": "2024-02-01",
-  "occurredAt": "2024-01-20T08:00:00Z"
+  "effectiveDate": "2022-02-01",
+  "occurredAt": "2022-01-20T08:00:00Z"
 }
 ```
 
@@ -647,7 +647,7 @@ graph TB
   "clientId": "cli-001",
   "correlationId": "abc-789",
   "amount": 15000.00,
-  "occurredAt": "2024-01-18T14:00:00Z"
+  "occurredAt": "2022-01-18T14:00:00Z"
 }
 ```
 
@@ -671,7 +671,7 @@ graph TB
   "amount": 15000.00,
   "currency": "EUR",
   "channel": "EMAIL_AND_SMS",
-  "occurredAt": "2024-01-15T10:30:00Z"
+  "occurredAt": "2022-01-15T10:30:00Z"
 }
 ```
 
@@ -692,7 +692,7 @@ graph TB
   "clientId": "cli-001",
   "correlationId": "def-456",
   "changeType": "KYC_APPROVED",
-  "occurredAt": "2024-01-16T09:15:00Z"
+  "occurredAt": "2022-01-16T09:15:00Z"
 }
 ```
 
@@ -707,7 +707,7 @@ All dead-letter events are wrapped in a standard envelope:
   "originalTopic": "reporting.transaction-created",
   "originalPayload": { "...": "original event body" },
   "failureReason": "ElasticsearchStatusException: index not found",
-  "failedAt": "2024-01-15T10:31:45Z",
+  "failedAt": "2022-01-15T10:31:45Z",
   "attemptCount": 3,
   "consumerGroup": "reporting-service",
   "correlationId": "abc-123"
@@ -1835,7 +1835,7 @@ After each deployment, a lightweight smoke test suite verifies the service is ac
 | Transaction Service | `GET /actuator/health` | `POST /api/transactions/payments` (test payload) | 200 health, 201 transaction created |
 | Product Service | `GET /actuator/health` | `GET /api/products/MORTGAGE/rate` | 200 health, rate returned |
 | Notification Service | `GET /actuator/health` | `GET /actuator/health/readiness` | 200 health, Kafka consumer UP |
-| Reporting Service | `GET /actuator/health` | `GET /api/reports/revenue?clientId=smoke-test&period=2024-01` | 200 health, report returned < 2s |
+| Reporting Service | `GET /actuator/health` | `GET /api/reports/revenue?clientId=smoke-test&period=2022-01` | 200 health, report returned < 2s |
 
 ### Canary Analysis — Prometheus Thresholds
 
@@ -1870,7 +1870,7 @@ export default function () {
   const token = __ENV.SMOKE_TEST_TOKEN;
 
   const res = http.get(
-    `${baseUrl}/api/reports/revenue?clientId=smoke-client&period=2024-01`,
+    `${baseUrl}/api/reports/revenue?clientId=smoke-client&period=2022-01`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
 
