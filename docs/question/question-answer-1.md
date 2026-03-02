@@ -95,3 +95,45 @@ If a client wants "every Monday" or "every 2 weeks", the scheduler would need to
 | Scheduled arbitrary intervals | Requires scheduler logic not described in the doc |
 
 The **data layer (ES) is ready**. The **API and cache layers** would need intentional design work to handle arbitrary periods efficiently.
+
+---
+
+## Q4: What is the purpose of having a PostgreSQL metadata DB for the reporting microservice?
+
+The metadata DB serves a fundamentally different purpose than Elasticsearch. ES holds the *reporting data*; Postgres holds the *operational configuration* that governs how the service behaves. There are three distinct concerns:
+
+### 1. Report Config — per-client settings
+Each branch or client may have different reporting preferences: which currency to display amounts in, which report templates are enabled, regional formatting rules. Before querying ES, the service loads this config from Postgres to know *how* to shape and enrich the result. This is explicitly shown in the request sequence:
+
+```
+AppSvc → PG: Load report config & currency settings
+PG → AppSvc: Config
+AppSvc → ES: Aggregation query (using the loaded config)
+```
+
+This data changes rarely and is relational by nature (per-client rows) — a natural fit for Postgres, not ES.
+
+### 2. Scheduled Reports — durable job state
+Some clients need reports generated automatically on a schedule (e.g. every Monday, end of month). Scheduled job definitions and their execution state (last run, next run, status) must be **durably persisted** and survive service restarts. ES is a search/aggregation engine and is not suitable for this; Postgres with ACID guarantees is the right store for job scheduling records.
+
+### 3. Alert Rules — threshold configuration
+The service tracks metric thresholds (e.g. "alert if transaction volume drops below X"). These rules are operational metadata that the service reads to decide whether to fire an alert — not something that belongs in the analytics index.
+
+### Why not store this in Elasticsearch?
+ES is optimized for full-text search and aggregations over large document sets. Config records, job state, and alert rules are:
+- Small in volume
+- Require transactional consistency (e.g. updating a scheduled job's `last_run_at` atomically)
+- Relational in structure (foreign keys, constraints)
+
+Putting them in ES would be using the wrong tool for the job.
+
+### Why not use the monolith's PostgreSQL 13?
+That would reintroduce coupling — the reporting service would depend on the monolith's database, breaking the autonomy that the entire decoupling effort was designed to achieve. PostgreSQL 15 is **service-owned**, meaning only the reporting microservice accesses it. This is a core microservices principle: each service owns its own data store.
+
+### Summary
+
+| What | Where | Why |
+|---|---|---|
+| Transaction projections (reporting data) | Elasticsearch | Aggregations, full-text, analytics |
+| Aggregation cache | Redis | Low-latency repeated queries |
+| Report config, schedules, alert rules | PostgreSQL 15 (metadata DB) | Relational, transactional, service-owned |
