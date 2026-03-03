@@ -14,7 +14,7 @@ import org.testcontainers.utility.DockerImageName;
  * Containers are started once per JVM and shared across all test classes,
  * preventing stale connection issues with Spring's context caching.
  */
-public abstract class AbstractIntegrationTest {
+public abstract class AbstractIT {
 
     static final PostgreSQLContainer<?> postgres;
     static final ElasticsearchContainer elasticsearch;

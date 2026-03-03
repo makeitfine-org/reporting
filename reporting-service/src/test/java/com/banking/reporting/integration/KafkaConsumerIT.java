@@ -17,7 +17,7 @@ import static org.awaitility.Awaitility.await;
 
 @SpringBootTest
 @ActiveProfiles("test")
-class KafkaConsumerIntegrationTest extends AbstractIntegrationTest {
+class KafkaConsumerIT extends AbstractIT {
 
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
