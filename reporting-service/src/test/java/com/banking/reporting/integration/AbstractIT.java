@@ -28,7 +28,7 @@ public abstract class AbstractIT {
                 .withPassword("reporting");
 
         elasticsearch = new ElasticsearchContainer(
-                DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch:8.11.0")
+                DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch:8.17.0")
                         .asCompatibleSubstituteFor("docker.elastic.co/elasticsearch/elasticsearch"))
                 .withEnv("xpack.security.enabled", "false")
                 .withEnv("discovery.type", "single-node")
