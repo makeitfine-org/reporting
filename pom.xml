@@ -40,7 +40,7 @@
         <checkstyle-plugin.version>3.6.0</checkstyle-plugin.version>
         <pmd-plugin.version>3.26.0</pmd-plugin.version>
         <jacoco-plugin.version>0.8.11</jacoco-plugin.version>
-        <dependency-check.version>9.0.9</dependency-check.version>
+        <dependency-check.version>12.1.0</dependency-check.version>
     </properties>
 
     <dependencyManagement>
@@ -173,6 +173,8 @@
                 </configuration>
                 <executions>
                     <execution>
+                        <id>validate</id>
+                        <phase>validate</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
