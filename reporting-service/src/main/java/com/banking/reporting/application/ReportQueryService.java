@@ -7,16 +7,13 @@ import com.banking.reporting.domain.exception.ResourceNotFoundException;
 import com.banking.reporting.domain.exception.ServiceUnavailableException;
 import com.banking.reporting.infrastructure.elasticsearch.document.TransactionProjection;
 import com.banking.reporting.infrastructure.elasticsearch.repository.TransactionProjectionRepository;
-import com.banking.reporting.infrastructure.postgres.entity.ReportConfig;
 import com.banking.reporting.infrastructure.postgres.repository.ReportConfigRepository;
 import com.banking.reporting.infrastructure.redis.ReportCacheService;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
-import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -49,7 +46,7 @@ public class ReportQueryService {
         }
 
         // 2. Load report config from PostgreSQL
-        ReportConfig config = reportConfigRepository.findByClientId(clientId)
+        reportConfigRepository.findByClientId(clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("ReportConfig", clientId));
 
         // 3. Parse period and execute ES aggregation
