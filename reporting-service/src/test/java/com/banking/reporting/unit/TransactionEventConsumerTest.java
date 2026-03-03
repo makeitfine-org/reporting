@@ -41,7 +41,7 @@ class TransactionEventConsumerTest {
         objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        consumer = new TransactionEventConsumer(projectionRepository, objectMapper);
+        consumer = new TransactionEventConsumer(projectionRepository);
     }
 
     @Test

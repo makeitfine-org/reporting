@@ -2,7 +2,6 @@ package com.banking.reporting.infrastructure.kafka.consumer;
 
 import com.banking.reporting.infrastructure.elasticsearch.repository.TransactionProjectionRepository;
 import com.banking.reporting.infrastructure.kafka.event.LoanDisbursedEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -18,7 +17,6 @@ import org.springframework.stereotype.Component;
 public class LoanEventConsumer {
 
     private final TransactionProjectionRepository projectionRepository;
-    private final ObjectMapper objectMapper;
 
     @KafkaListener(
         topics = "reporting.loan-disbursed",
@@ -26,12 +24,11 @@ public class LoanEventConsumer {
         containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleLoanDisbursed(
-            @Payload Object payload,
+            @Payload LoanDisbursedEvent event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             Acknowledgment acknowledgment) {
 
         try {
-            LoanDisbursedEvent event = objectMapper.convertValue(payload, LoanDisbursedEvent.class);
             log.info("Processing LoanDisbursed: transactionId={} loanId={} status={}",
                     event.getTransactionId(), event.getLoanId(), event.getStatus());
 

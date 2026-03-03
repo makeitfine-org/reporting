@@ -3,7 +3,6 @@ package com.banking.reporting.infrastructure.kafka.consumer;
 import com.banking.reporting.infrastructure.elasticsearch.document.ProductDetails;
 import com.banking.reporting.infrastructure.elasticsearch.repository.TransactionProjectionRepository;
 import com.banking.reporting.infrastructure.kafka.event.ProductRateUpdatedEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -20,7 +19,6 @@ import org.springframework.stereotype.Component;
 public class ProductEventConsumer {
 
     private final TransactionProjectionRepository projectionRepository;
-    private final ObjectMapper objectMapper;
 
     @KafkaListener(
         topics = "reporting.product-rate-updated",
@@ -28,12 +26,11 @@ public class ProductEventConsumer {
         containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleProductRateUpdated(
-            @Payload Object payload,
+            @Payload ProductRateUpdatedEvent event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             Acknowledgment acknowledgment) {
 
         try {
-            ProductRateUpdatedEvent event = objectMapper.convertValue(payload, ProductRateUpdatedEvent.class);
             log.info("Processing ProductRateUpdated: productId={} clientId={} newRate={}",
                     event.getProductId(), event.getClientId(), event.getNewRate());
 

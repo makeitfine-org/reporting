@@ -5,7 +5,6 @@ import com.banking.reporting.infrastructure.elasticsearch.repository.Transaction
 import com.banking.reporting.infrastructure.kafka.event.ChargebackProcessedEvent;
 import com.banking.reporting.infrastructure.kafka.event.TransactionCreatedEvent;
 import com.banking.reporting.infrastructure.kafka.event.TransactionReversedEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -21,7 +20,6 @@ import org.springframework.stereotype.Component;
 public class TransactionEventConsumer {
 
     private final TransactionProjectionRepository projectionRepository;
-    private final ObjectMapper objectMapper;
 
     @KafkaListener(
         topics = "reporting.transaction-created",
@@ -29,13 +27,12 @@ public class TransactionEventConsumer {
         containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleTransactionCreated(
-            @Payload Object payload,
+            @Payload TransactionCreatedEvent event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_KEY) String key,
             Acknowledgment acknowledgment) {
 
         try {
-            TransactionCreatedEvent event = objectMapper.convertValue(payload, TransactionCreatedEvent.class);
             log.info("Processing TransactionCreated: transactionId={} clientId={} correlationId={}",
                     event.getTransactionId(), event.getClientId(), event.getCorrelationId());
 
@@ -63,12 +60,11 @@ public class TransactionEventConsumer {
         containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleTransactionReversed(
-            @Payload Object payload,
+            @Payload TransactionReversedEvent event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             Acknowledgment acknowledgment) {
 
         try {
-            TransactionReversedEvent event = objectMapper.convertValue(payload, TransactionReversedEvent.class);
             log.info("Processing TransactionReversed: transactionId={} clientId={} reason={}",
                     event.getTransactionId(), event.getClientId(), event.getReason());
 
@@ -93,12 +89,11 @@ public class TransactionEventConsumer {
         containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleChargebackProcessed(
-            @Payload Object payload,
+            @Payload ChargebackProcessedEvent event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             Acknowledgment acknowledgment) {
 
         try {
-            ChargebackProcessedEvent event = objectMapper.convertValue(payload, ChargebackProcessedEvent.class);
             log.info("Processing ChargebackProcessed: transactionId={} loanId={}",
                     event.getTransactionId(), event.getLoanId());
 
