@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -106,5 +107,82 @@ class TransactionEventConsumerTest {
 
         verify(projectionRepository, never()).save(any());
         verify(acknowledgment).acknowledge();
+    }
+
+    @Test
+    void handleChargebackProcessed_updatesProjectionStatus() {
+        TransactionProjection existing = TransactionProjection.builder()
+                .transactionId("tx-001")
+                .status("COMPLETED")
+                .build();
+
+        when(projectionRepository.findById("tx-001")).thenReturn(Optional.of(existing));
+
+        com.banking.reporting.infrastructure.kafka.event.ChargebackProcessedEvent event =
+                com.banking.reporting.infrastructure.kafka.event.ChargebackProcessedEvent.builder()
+                        .transactionId("tx-001")
+                        .loanId("loan-001")
+                        .build();
+
+        consumer.handleChargebackProcessed(event, "topic", acknowledgment);
+
+        verify(projectionRepository).save(existing);
+        assertThat(existing.getStatus()).isEqualTo("CHARGEBACK");
+        verify(acknowledgment).acknowledge();
+    }
+
+    @Test
+    void handleChargebackProcessed_projectionNotFound_acknowledges() {
+        when(projectionRepository.findById("tx-001")).thenReturn(Optional.empty());
+
+        com.banking.reporting.infrastructure.kafka.event.ChargebackProcessedEvent event =
+                com.banking.reporting.infrastructure.kafka.event.ChargebackProcessedEvent.builder()
+                        .transactionId("tx-001")
+                        .build();
+
+        consumer.handleChargebackProcessed(event, "topic", acknowledgment);
+
+        verify(projectionRepository, never()).save(any());
+        verify(acknowledgment).acknowledge();
+    }
+
+    @Test
+    void handleTransactionCreated_throwsException_rethrows() {
+        TransactionCreatedEvent event = TransactionCreatedEvent.builder()
+                .transactionId("tx-001")
+                .build();
+
+        doThrow(new RuntimeException("DB error")).when(projectionRepository).save(any());
+
+        assertThatThrownBy(() -> consumer.handleTransactionCreated(event, "topic", "key", acknowledgment))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("DB error");
+
+        verify(acknowledgment, never()).acknowledge();
+    }
+
+    @Test
+    void handleTransactionReversed_throwsException_rethrows() {
+        TransactionReversedEvent event = TransactionReversedEvent.builder()
+                .transactionId("tx-001")
+                .build();
+
+        when(projectionRepository.findById(any())).thenThrow(new RuntimeException("Error"));
+
+        assertThatThrownBy(() -> consumer.handleTransactionReversed(event, "topic", acknowledgment))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void handleChargebackProcessed_throwsException_rethrows() {
+        com.banking.reporting.infrastructure.kafka.event.ChargebackProcessedEvent event =
+                com.banking.reporting.infrastructure.kafka.event.ChargebackProcessedEvent.builder()
+                        .transactionId("tx-001")
+                        .build();
+
+        when(projectionRepository.findById(any())).thenThrow(new RuntimeException("Error"));
+
+        assertThatThrownBy(() -> consumer.handleChargebackProcessed(event, "topic", acknowledgment))
+                .isInstanceOf(RuntimeException.class);
     }
 }

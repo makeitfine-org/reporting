@@ -18,8 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Collections;
 import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -92,13 +92,13 @@ class ReportControllerTest {
     }
 
     @Test
-    void createReportConfig_returnsSavedConfig() throws Exception {
-        ReportConfig config = new ReportConfig();
-        config.setClientId("cli-001");
-        config.setReportType("MONTHLY");
+    void createReportConfig_updatesExistingConfig() throws Exception {
+        ReportConfig existing = new ReportConfig();
+        existing.setClientId("cli-001");
+        existing.setCurrency("EUR");
 
-        when(reportConfigRepository.findByClientId(anyString())).thenReturn(Optional.empty());
-        when(reportConfigRepository.save(any(ReportConfig.class))).thenReturn(config);
+        when(reportConfigRepository.findByClientId("cli-001")).thenReturn(Optional.of(existing));
+        when(reportConfigRepository.save(any(ReportConfig.class))).thenReturn(existing);
 
         String jsonRequest = """
                 {
@@ -113,7 +113,8 @@ class ReportControllerTest {
         mockMvc.perform(post("/api/reports/config")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.clientId").value("cli-001"));
+                .andExpect(status().isOk());
+
+        verify(reportConfigRepository).save(argThat(config -> "USD".equals(config.getCurrency())));
     }
 }

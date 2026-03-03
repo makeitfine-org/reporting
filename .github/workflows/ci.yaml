@@ -74,13 +74,13 @@ jobs:
       - name: Run Unit Tests
         run: |
           mvn -pl reporting-service test \
-            -Dtest="com.banking.reporting.unit.*" \
+            -Dtest="com.banking.reporting.unit.**" \
             -Dfailsafe.skipTests=true
 
       - name: Run Integration Tests (Testcontainers)
         run: |
           mvn -pl reporting-service verify \
-            -Dtest="com.banking.reporting.integration.*" \
+            -Dtest="com.banking.reporting.integration.**" \
             -Dsurefire.failIfNoSpecifiedTests=false
         env:
           TESTCONTAINERS_RYUK_DISABLED: "false"

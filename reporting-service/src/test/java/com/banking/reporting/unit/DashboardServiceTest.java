@@ -65,6 +65,27 @@ class DashboardServiceTest {
     }
 
     @Test
+    void getDashboard_withNullAmount_treatsAsZero() {
+        List<TransactionProjection> projections = List.of(
+                TransactionProjection.builder()
+                        .transactionId("tx-001")
+                        .clientId("cli-001")
+                        .status("COMPLETED")
+                        .amount(null)
+                        .transactedAt(Instant.now())
+                        .build()
+        );
+
+        when(projectionRepository.findByClientIdAndTransactedAtBetween(eq("cli-001"), any(), any()))
+                .thenReturn(projections);
+        when(alertRuleRepository.countByClientIdAndEnabled("cli-001", true)).thenReturn(0L);
+
+        DashboardDto dashboard = dashboardService.getDashboard("cli-001");
+
+        assertThat(dashboard.getTotalVolumeToday()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
     void dashboardFallback_returnsEmptyDashboard() {
         DashboardDto fallback = dashboardService.dashboardFallback("cli-001", new RuntimeException("ES down"));
 

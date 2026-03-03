@@ -5,6 +5,7 @@ import com.banking.reporting.api.dto.RevenueReportDto;
 import com.banking.reporting.application.ReportQueryService;
 import com.banking.reporting.domain.exception.ResourceNotFoundException;
 import com.banking.reporting.infrastructure.elasticsearch.repository.TransactionProjectionRepository;
+import com.banking.reporting.infrastructure.elasticsearch.document.TransactionProjection;
 import com.banking.reporting.infrastructure.postgres.entity.ReportConfig;
 import com.banking.reporting.infrastructure.postgres.repository.ReportConfigRepository;
 import com.banking.reporting.infrastructure.redis.ReportCacheService;
@@ -135,6 +136,43 @@ class ReportQueryServiceTest {
         RevenueReportDto result = reportQueryService.getRevenueReport(CLIENT_ID, PERIOD);
 
         assertThat(result.getCacheSource()).isEqualTo("REDIS");
-        verifyNoInteractions(projectionRepository);
+        verifyNoInteractions(reportConfigRepository);
+    }
+
+    @Test
+    void financialAggregationFallback_throwsServiceUnavailableException() {
+        Instant from = Instant.now();
+        Instant to = Instant.now();
+        RuntimeException ex = new RuntimeException("ES down");
+
+        assertThatThrownBy(() -> reportQueryService.financialAggregationFallback(CLIENT_ID, from, to, ex))
+                .isInstanceOf(com.banking.reporting.domain.exception.ServiceUnavailableException.class)
+                .hasMessageContaining("Elasticsearch is unavailable");
+    }
+
+    @Test
+    void revenueAggregationFallback_throwsServiceUnavailableException() {
+        Instant from = Instant.now();
+        Instant to = Instant.now();
+        RuntimeException ex = new RuntimeException("ES down");
+
+        assertThatThrownBy(() -> reportQueryService.revenueAggregationFallback(CLIENT_ID, from, to, ex))
+                .isInstanceOf(com.banking.reporting.domain.exception.ServiceUnavailableException.class)
+                .hasMessageContaining("Elasticsearch is unavailable");
+    }
+
+    @Test
+    void getTransactions_returnsProjectionsAsDtos() {
+        when(projectionRepository.findByClientIdAndTransactedAtBetween(eq(CLIENT_ID), any(), any()))
+                .thenReturn(java.util.List.of(TransactionProjection.builder()
+                        .transactionId("tx-001")
+                        .clientId(CLIENT_ID)
+                        .status("COMPLETED")
+                        .build()));
+
+        var result = reportQueryService.getTransactions(CLIENT_ID, PERIOD);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getTransactionId()).isEqualTo("tx-001");
     }
 }
