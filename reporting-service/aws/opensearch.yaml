@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Amazon OpenSearch (ES 8.x compatible) for Reporting Service read model
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: banking-reporting
+  InstanceType:
+    Type: String
+    Default: r6g.large.search
+  InstanceCount:
+    Type: Number
+    Default: 3
+  VolumeSize:
+    Type: Number
+    Default: 200
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  EKSSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+
+Resources:
+  OSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: OpenSearch Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref EKSSecurityGroupId
+        - IpProtocol: tcp
+          FromPort: 9200
+          ToPort: 9200
+          SourceSecurityGroupId: !Ref EKSSecurityGroupId
+
+  OpenSearchDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: !Ref DomainName
+      EngineVersion: "OpenSearch_2.11"
+      ClusterConfig:
+        InstanceType: !Ref InstanceType
+        InstanceCount: !Ref InstanceCount
+        DedicatedMasterEnabled: true
+        DedicatedMasterType: r6g.large.search
+        DedicatedMasterCount: 3
+        ZoneAwarenessEnabled: true
+        ZoneAwarenessConfig:
+          AvailabilityZoneCount: 3
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: !Ref VolumeSize
+      VPCOptions:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds:
+          - !Ref OSSecurityGroup
+      EncryptionAtRestOptions:
+        Enabled: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: false
+        MasterUserOptions:
+          MasterUserARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/ReportingServiceRole"
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+        TLSSecurityPolicy: Policy-Min-TLS-1-2-2019-07
+      Tags:
+        - Key: Service
+          Value: reporting-service
+        - Key: Purpose
+          Value: read-model
+
+Outputs:
+  OpenSearchEndpoint:
+    Value: !GetAtt OpenSearchDomain.DomainEndpoint
+    Export:
+      Name: !Sub "${AWS::StackName}-OpenSearchEndpoint"

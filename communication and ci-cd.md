@@ -51,7 +51,7 @@ This document covers how those five services talk to each other, how they talk t
 
 | Layer | Technology |
 |---|---|
-| Language | Java 17 |
+| Language | Java 21 |
 | Framework | Spring Boot 3.x |
 | API Gateway | Kong (declarative config, DB-less mode) |
 | Auth | Keycloak 22 — OAuth2 / JWT (OIDC) |
@@ -1247,10 +1247,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: maven
 
@@ -1407,10 +1407,10 @@ public abstract class AbstractIntegrationTest {
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: maven
 
@@ -1442,7 +1442,7 @@ public abstract class AbstractIntegrationTest {
 
 ```dockerfile
 # Stage 1: Build
-FROM eclipse-temurin:17-jdk-alpine AS builder
+FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /workspace
 
 COPY pom.xml .
@@ -1451,13 +1451,13 @@ COPY src ./src
 RUN mvn package -DskipTests --no-transfer-progress
 
 # Stage 2: Extract layered JAR
-FROM eclipse-temurin:17-jdk-alpine AS extractor
+FROM eclipse-temurin:21-jdk-alpine AS extractor
 WORKDIR /workspace
 COPY --from=builder /workspace/target/*.jar app.jar
 RUN java -Djarmode=layertools -jar app.jar extract
 
 # Stage 3: Runtime image (minimal JRE)
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Non-root user for security
@@ -1480,7 +1480,7 @@ ENTRYPOINT ["java", \
 ```
 
 Key choices:
-- **Eclipse Temurin 17 JRE** (not JDK) in the final stage — smaller attack surface
+- **Eclipse Temurin 21 JRE** (not JDK) in the final stage — smaller attack surface
 - **Non-root `spring` user** — container cannot write to system directories
 - **Layered JAR extraction** — dependencies layer is cached separately from application code, making subsequent builds 80% faster
 - **`-XX:UseContainerSupport`** — JVM reads cgroup memory limits rather than host RAM
@@ -1497,10 +1497,10 @@ Key choices:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: maven
 

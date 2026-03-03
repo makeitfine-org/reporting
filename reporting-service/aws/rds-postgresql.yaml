@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: RDS PostgreSQL 15 Multi-AZ for Reporting Service
+
+Parameters:
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.medium
+  DBName:
+    Type: String
+    Default: reporting
+  DBUsername:
+    Type: String
+    Default: reporting
+  MultiAZ:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  EKSSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Reporting service DB subnet group
+      SubnetIds: !Ref SubnetIds
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS PostgreSQL Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EKSSecurityGroupId
+
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: /banking/reporting/db-password
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "${DBUsername}"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'
+
+  ReportingDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: reporting-service-db
+      DBName: !Ref DBName
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: postgres
+      EngineVersion: "15.4"
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}:SecretString:password}}"
+      MultiAZ: !Ref MultiAZ
+      StorageType: gp3
+      AllocatedStorage: "100"
+      MaxAllocatedStorage: 1000
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      DeletionProtection: true
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+      Tags:
+        - Key: Service
+          Value: reporting-service
+        - Key: Environment
+          Value: production
+
+Outputs:
+  DBEndpoint:
+    Value: !GetAtt ReportingDB.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-DBEndpoint"
+  DBPort:
+    Value: !GetAtt ReportingDB.Endpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-DBPort"
+  DBSecretArn:
+    Value: !Ref DBSecret
+    Export:
+      Name: !Sub "${AWS::StackName}-DBSecretArn"

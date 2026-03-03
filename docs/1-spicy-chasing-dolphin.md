@@ -60,7 +60,7 @@ Step-by-step migration story:
 
 ### 3. Reporting Microservice Architecture
 **Technologies:**
-- Java 17 / Spring Boot 3.x
+- Java 21 / Spring Boot 3.x
 - Spring Kafka (consumer)
 - Spring Data Elasticsearch
 - Redis (caching aggregated results)

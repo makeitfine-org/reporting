@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: IAM roles for Reporting Service EKS IRSA (IAM Roles for Service Accounts)
+
+Parameters:
+  EKSClusterOIDCIssuer:
+    Type: String
+    Description: OIDC issuer URL from EKS cluster (without https://)
+  Namespace:
+    Type: String
+    Default: reporting
+  ServiceAccountName:
+    Type: String
+    Default: reporting-service
+
+Resources:
+  ReportingServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ReportingServiceRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/${EKSClusterOIDCIssuer}"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "sub": !Sub "system:serviceaccount:${Namespace}:${ServiceAccountName}"
+      Policies:
+        - PolicyName: ReportingServicePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/banking/reporting/*"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource: "*"
+                Condition:
+                  StringLike:
+                    "kms:ViaService": "secretsmanager.*.amazonaws.com"
+              - Effect: Allow
+                Action:
+                  - es:ESHttpGet
+                  - es:ESHttpPost
+                  - es:ESHttpPut
+                  - es:ESHttpDelete
+                Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/banking-reporting/*"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                Resource: "*"
+
+Outputs:
+  ReportingServiceRoleArn:
+    Value: !GetAtt ReportingServiceRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ReportingServiceRoleArn"

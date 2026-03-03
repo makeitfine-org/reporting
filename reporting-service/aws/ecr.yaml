@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ECR Repository for Reporting Service Docker images
+
+Resources:
+  ReportingServiceRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: banking/reporting-service
+      ImageTagMutability: MUTABLE
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 production images",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPrefixList": ["sha-"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              },
+              {
+                "rulePriority": 2,
+                "description": "Delete untagged images after 7 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 7
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+      Tags:
+        - Key: Service
+          Value: reporting-service
+
+Outputs:
+  RepositoryUri:
+    Value: !GetAtt ReportingServiceRepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-RepositoryUri"

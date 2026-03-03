@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ElastiCache Redis 7 for Reporting Service cache layer
+
+Parameters:
+  NodeType:
+    Type: String
+    Default: cache.r6g.large
+  NumCacheNodes:
+    Type: Number
+    Default: 3
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  EKSSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+
+Resources:
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ElastiCache Redis Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref EKSSecurityGroupId
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Redis subnet group for reporting service
+      SubnetIds: !Ref SubnetIds
+
+  RedisReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: Reporting Service Redis Cache
+      ReplicationGroupId: reporting-redis
+      Engine: redis
+      EngineVersion: "7.0"
+      CacheNodeType: !Ref NodeType
+      NumCacheClusters: !Ref NumCacheNodes
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      SnapshotRetentionLimit: 7
+      Tags:
+        - Key: Service
+          Value: reporting-service
+
+Outputs:
+  RedisPrimaryEndpoint:
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-RedisPrimaryEndpoint"
+  RedisPort:
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-RedisPort"

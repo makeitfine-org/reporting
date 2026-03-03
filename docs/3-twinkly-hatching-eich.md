@@ -118,7 +118,7 @@ The document must follow the same style conventions as `architecture and decoupl
 
 **3.5. Stage 3 — Build (Maven + Docker Multi-Stage)**
 - `mvn package -DskipTests` → Docker multi-stage `Dockerfile` (full content)
-- Eclipse Temurin 17 JRE, non-root `spring` user
+- Eclipse Temurin 21 JRE, non-root `spring` user
 - Image tags: `ghcr.io/banking/<service>:<git-sha>` + `:latest`
 - GitHub Actions YAML with dynamic SHA tag
 

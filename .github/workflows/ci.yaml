@@ -1,0 +1,378 @@
+name: Reporting Service CI/CD
+
+on:
+  push:
+    branches: [master, main, develop]
+    paths:
+      - "reporting-service/**"
+      - "pom.xml"
+      - ".github/workflows/ci.yaml"
+  pull_request:
+    branches: [master, main]
+
+env:
+  JAVA_VERSION: "21"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/reporting-service
+
+jobs:
+  # ──────────────────────────────────────────
+  # Stage 1: Code Quality
+  # ──────────────────────────────────────────
+  code-quality:
+    name: "Stage 1 — Code Quality"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Run Checkstyle
+        run: mvn -pl reporting-service checkstyle:check -q
+
+      - name: Run PMD
+        run: mvn -pl reporting-service pmd:check -q
+
+      - name: OWASP Dependency Check
+        run: |
+          mvn -pl reporting-service org.owasp:dependency-check-maven:check \
+            -DfailBuildOnCVSS=7 \
+            -DsuppressionFile=reporting-service/owasp-suppressions.xml
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        continue-on-error: false
+
+  # ──────────────────────────────────────────
+  # Stage 2: Tests
+  # ──────────────────────────────────────────
+  test:
+    name: "Stage 2 — Unit & Integration Tests"
+    runs-on: ubuntu-latest
+    needs: code-quality
+    services:
+      docker:
+        image: docker:dind
+        options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Run Unit Tests
+        run: |
+          mvn -pl reporting-service test \
+            -Dtest="com.banking.reporting.unit.*" \
+            -Dfailsafe.skipTests=true
+
+      - name: Run Integration Tests (Testcontainers)
+        run: |
+          mvn -pl reporting-service verify \
+            -Dtest="com.banking.reporting.integration.*" \
+            -Dsurefire.failIfNoSpecifiedTests=false
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+
+      - name: Check JaCoCo Coverage (≥80%)
+        run: mvn -pl reporting-service jacoco:check
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: reporting-service/target/site/jacoco/
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: JUnit Tests
+          path: "reporting-service/target/surefire-reports/*.xml"
+          reporter: java-junit
+
+  # ──────────────────────────────────────────
+  # Stage 3: Build
+  # ──────────────────────────────────────────
+  build:
+    name: "Stage 3 — Build"
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Build Maven artifact (skip tests)
+        run: mvn -pl reporting-service package -DskipTests -q
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./reporting-service
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/reporting-service.tar
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp/reporting-service.tar
+          retention-days: 1
+
+  # ──────────────────────────────────────────
+  # Stage 4: Security Scanning
+  # ──────────────────────────────────────────
+  security-scan:
+    name: "Stage 4 — Security Scan"
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+
+      - name: Load Docker image
+        run: docker load --input /tmp/reporting-service.tar
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          format: sarif
+          output: trivy-results.sarif
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Run Snyk container scan
+        uses: snyk/actions/docker@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          args: --severity-threshold=high
+
+  # ──────────────────────────────────────────
+  # Stage 5: Push to GHCR
+  # ──────────────────────────────────────────
+  push:
+    name: "Stage 5 — Push to GHCR"
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+
+      - name: Load Docker image
+        run: docker load --input /tmp/reporting-service.tar
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        run: |
+          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
+          LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest $IMAGE_TAG
+          docker push $IMAGE_TAG
+          docker push $LATEST_TAG
+
+  # ──────────────────────────────────────────
+  # Stage 6: Deploy
+  # ──────────────────────────────────────────
+  deploy-dev:
+    name: "Stage 6 — Deploy to Dev"
+    runs-on: ubuntu-latest
+    needs: push
+    environment: development
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.13.0"
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_DEV }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy to Dev
+        run: |
+          helm upgrade --install reporting-service \
+            reporting-service/helm/reporting-service \
+            --namespace reporting \
+            --create-namespace \
+            -f reporting-service/helm/reporting-service/values.yaml \
+            -f reporting-service/helm/reporting-service/values-dev.yaml \
+            --set image.tag=sha-${{ github.sha }} \
+            --wait \
+            --timeout 5m
+
+  deploy-staging:
+    name: "Stage 6 — Deploy to Staging"
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.13.0"
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy to Staging
+        run: |
+          helm upgrade --install reporting-service \
+            reporting-service/helm/reporting-service \
+            --namespace reporting \
+            --create-namespace \
+            -f reporting-service/helm/reporting-service/values.yaml \
+            -f reporting-service/helm/reporting-service/values-staging.yaml \
+            --set image.tag=sha-${{ github.sha }} \
+            --wait \
+            --timeout 5m
+
+  deploy-prod:
+    name: "Stage 6 — Deploy to Production"
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment: production  # Requires manual approval in GitHub Environments
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.13.0"
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_PROD }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy to Production
+        run: |
+          helm upgrade --install reporting-service \
+            reporting-service/helm/reporting-service \
+            --namespace reporting \
+            --create-namespace \
+            -f reporting-service/helm/reporting-service/values.yaml \
+            -f reporting-service/helm/reporting-service/values-prod.yaml \
+            --set image.tag=sha-${{ github.sha }} \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --wait \
+            --timeout 10m \
+            --atomic  # Rollback on failure
+
+  # ──────────────────────────────────────────
+  # Stage 7: Smoke Tests & Canary
+  # ──────────────────────────────────────────
+  smoke-tests:
+    name: "Stage 7 — Smoke Tests & Canary"
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.48.0/k6-v0.48.0-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-v0.48.0-linux-amd64/k6 /usr/local/bin
+
+      - name: Run smoke tests
+        run: |
+          k6 run --vus 5 --duration 60s \
+            -e BASE_URL=${{ secrets.PROD_API_URL }} \
+            -e JWT_TOKEN=${{ secrets.SMOKE_TEST_JWT }} \
+            reporting-service/k6/smoke-test.js
+
+      - name: Check Prometheus SLO metrics
+        run: |
+          # Verify p99 latency < 2s and error rate < 1%
+          PROM_URL="${{ secrets.PROMETHEUS_URL }}"
+          P99=$(curl -s "${PROM_URL}/api/v1/query?query=histogram_quantile(0.99,rate(http_server_requests_seconds_bucket{application=\"reporting-service\"}[5m]))" | jq '.data.result[0].value[1]' -r)
+          echo "P99 latency: ${P99}s"
+          if (( $(echo "$P99 > 2.0" | bc -l) )); then
+            echo "P99 latency ${P99}s exceeds 2s SLO threshold — triggering rollback"
+            helm rollback reporting-service -n reporting
+            exit 1
+          fi
+          echo "Smoke tests passed. P99=${P99}s"

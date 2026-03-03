@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Amazon MSK Kafka 3-broker cluster for Banking Platform
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: banking-kafka
+  KafkaVersion:
+    Type: String
+    Default: "3.5.1"
+  BrokerInstanceType:
+    Type: String
+    Default: kafka.m5.large
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  EKSSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+
+Resources:
+  MSKSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: MSK Kafka Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9092
+          ToPort: 9092
+          SourceSecurityGroupId: !Ref EKSSecurityGroupId
+        - IpProtocol: tcp
+          FromPort: 9094
+          ToPort: 9094
+          SourceSecurityGroupId: !Ref EKSSecurityGroupId
+
+  MSKCluster:
+    Type: AWS::MSK::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+      KafkaVersion: !Ref KafkaVersion
+      NumberOfBrokerNodes: 3
+      BrokerNodeGroupInfo:
+        InstanceType: !Ref BrokerInstanceType
+        ClientSubnets: !Ref SubnetIds
+        SecurityGroups:
+          - !Ref MSKSecurityGroup
+        StorageInfo:
+          EBSStorageInfo:
+            VolumeSize: 100
+      EncryptionInfo:
+        EncryptionInTransit:
+          ClientBroker: TLS
+          InCluster: true
+      ClientAuthentication:
+        Sasl:
+          Scram:
+            Enabled: true
+      ConfigurationInfo:
+        Arn: !Ref MSKConfiguration
+        Revision: 1
+      EnhancedMonitoring: PER_TOPIC_PER_BROKER
+      Tags:
+        Service: banking-platform
+        Environment: production
+
+  MSKConfiguration:
+    Type: AWS::MSK::Configuration
+    Properties:
+      Name: banking-kafka-config
+      KafkaVersionsList:
+        - !Ref KafkaVersion
+      ServerProperties: |
+        auto.create.topics.enable=true
+        default.replication.factor=3
+        min.insync.replicas=2
+        num.partitions=3
+        log.retention.hours=168
+        compression.type=lz4
+
+Outputs:
+  MSKClusterArn:
+    Value: !Ref MSKCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-MSKClusterArn"

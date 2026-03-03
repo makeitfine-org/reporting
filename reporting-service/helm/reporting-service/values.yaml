@@ -1,0 +1,93 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/banking/reporting-service
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: reporting.banking.internal
+      paths:
+        - path: /api/reports
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "2000m"
+    memory: "1Gi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# ConfigMap environment variables
+config:
+  kafkaBootstrapServers: "kafka.infra.svc.cluster.local:9092"
+  esUris: "http://elasticsearch.infra.svc.cluster.local:9200"
+  keycloakJwksUri: "http://keycloak.auth.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"
+  redisHost: "redis.infra.svc.cluster.local"
+  redisPort: "6379"
+  postgresUrl: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/reporting"
+  postgresUser: "reporting"
+  logLevel: "INFO"
+
+# Secrets (base64-encoded in production; use Vault/SOPS in practice)
+secrets:
+  postgresPassword: "cmVwb3J0aW5n"  # 'reporting' base64
+  kafkaPassword: ""
+
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - reporting-service
+          topologyKey: kubernetes.io/hostname

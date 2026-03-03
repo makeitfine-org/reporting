@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: EKS Cluster for Banking Platform — Reporting Service
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: banking-platform
+  NodeGroupInstanceType:
+    Type: String
+    Default: m5.large
+  NodeGroupMinSize:
+    Type: Number
+    Default: 3
+  NodeGroupMaxSize:
+    Type: Number
+    Default: 10
+  NodeGroupDesiredSize:
+    Type: Number
+    Default: 3
+  KubernetesVersion:
+    Type: String
+    Default: "1.28"
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+
+Resources:
+  EKSClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Ref ClusterName
+      Version: !Ref KubernetesVersion
+      RoleArn: !GetAtt EKSClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref ClusterSecurityGroup
+        SubnetIds: !Ref SubnetIds
+        EndpointPublicAccess: false
+        EndpointPrivateAccess: true
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+            - Type: authenticator
+
+  ClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EKS Cluster Security Group
+      VpcId: !Ref VpcId
+
+  NodeGroupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+  ManagedNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      NodeRole: !GetAtt NodeGroupRole.Arn
+      Subnets: !Ref SubnetIds
+      InstanceTypes:
+        - !Ref NodeGroupInstanceType
+      ScalingConfig:
+        MinSize: !Ref NodeGroupMinSize
+        MaxSize: !Ref NodeGroupMaxSize
+        DesiredSize: !Ref NodeGroupDesiredSize
+      Labels:
+        role: worker
+      Tags:
+        Environment: production
+        Service: banking-platform
+
+Outputs:
+  ClusterName:
+    Value: !Ref EKSCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+  ClusterEndpoint:
+    Value: !GetAtt EKSCluster.Endpoint
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterEndpoint"
+  ClusterArn:
+    Value: !GetAtt EKSCluster.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterArn"

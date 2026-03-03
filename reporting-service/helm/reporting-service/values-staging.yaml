@@ -1,0 +1,24 @@
+replicaCount: 3
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+config:
+  kafkaBootstrapServers: "kafka.staging.infra.svc.cluster.local:9092"
+  esUris: "http://elasticsearch.staging.infra.svc.cluster.local:9200"
+  keycloakJwksUri: "http://keycloak.staging.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"
+  logLevel: "INFO"
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+ingress:
+  hosts:
+    - host: reporting-staging.banking.internal
+      paths:
+        - path: /api/reports
+          pathType: Prefix

@@ -580,7 +580,7 @@ With 100% of traffic on the new service and metrics stable for two weeks, we rem
 
 | Layer | Technology |
 |---|---|
-| Language | Java 17 |
+| Language | Java 21 |
 | Framework | Spring Boot 3.x |
 | Messaging | Apache Kafka (Spring Kafka) |
 | Read Store | Elasticsearch 8.x (Spring Data Elasticsearch) |

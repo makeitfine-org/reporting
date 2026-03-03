@@ -1,0 +1,47 @@
+spring:
+  datasource:
+    url: ${TEST_POSTGRES_URL:jdbc:postgresql://localhost:5432/reporting}
+    username: ${TEST_POSTGRES_USER:reporting}
+    password: ${TEST_POSTGRES_PASSWORD:reporting}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  elasticsearch:
+    uris: ${TEST_ES_URI:http://localhost:9200}
+
+  data:
+    redis:
+      host: ${TEST_REDIS_HOST:localhost}
+      port: ${TEST_REDIS_PORT:6379}
+
+  kafka:
+    bootstrap-servers: ${TEST_KAFKA_BOOTSTRAP:localhost:9092}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Use a test JWKS URI (Testcontainers Keycloak or mock)
+          jwk-set-uri: ${TEST_JWKS_URI:http://localhost:9999/realms/test/protocol/openid-connect/certs}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      elasticsearch:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        wait-duration-in-open-state: 5s
+
+logging:
+  level:
+    com.banking.reporting: DEBUG
+    org.springframework.kafka: DEBUG
+    org.testcontainers: INFO

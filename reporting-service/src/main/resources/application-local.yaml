@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/reporting
+    username: reporting
+    password: reporting
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+    elasticsearch:
+      uris: http://localhost:9200
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8180/realms/banking/protocol/openid-connect/certs
+
+logging:
+  level:
+    com.banking.reporting: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.security: DEBUG
