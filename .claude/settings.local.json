@@ -98,7 +98,8 @@
       "Bash(ls /home/eug/dev/projects/my/reporting/*/helm/*/values-*.yaml | sort)",
       "Bash(jar tf ~/.m2/repository/io/github/openfeign/feign-core/13.6/feign-core-13.6.jar | grep RequestInterceptor)",
       "Bash(jar tf ~/.m2/repository/com/banking/banking-commons/1.0.0-SNAPSHOT/banking-commons-1.0.0-SNAPSHOT.jar | grep -i feign)",
-      "Bash(jar tf ~/.m2/repository/com/banking/banking-commons/1.0.0-SNAPSHOT/banking-commons-1.0.0-SNAPSHOT.jar | grep -i \"META-INF\\\\|spring\")"
+      "Bash(jar tf ~/.m2/repository/com/banking/banking-commons/1.0.0-SNAPSHOT/banking-commons-1.0.0-SNAPSHOT.jar | grep -i \"META-INF\\\\|spring\")",
+      "Bash(find /home/eug/dev/projects/my/reporting -name \"*.yml\" -o -name \"*.yaml\" 2>/dev/null | grep -v target | grep -v node_modules)"
     ]
   }
 }

@@ -5,6 +5,8 @@ import com.banking.notification.infrastructure.kafka.event.TransactionCreatedEve
 import com.banking.notification.infrastructure.postgres.repository.NotificationJobRepository;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.icegreen.greenmail.util.GreenMail;
+import com.icegreen.greenmail.util.ServerSetup;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -38,15 +40,25 @@ class KafkaNotificationConsumerIT {
             .withUsername("notifications")
             .withPassword("notifications");
 
-    static WireMockServer wireMock = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
+    // Both started in static initializer so ports are known before @DynamicPropertySource runs
+    static final GreenMail greenMail;
+    static final WireMockServer wireMock;
+
+    static {
+        greenMail = new GreenMail(new ServerSetup(0, "localhost", ServerSetup.PROTOCOL_SMTP));
+        greenMail.start();
+
+        wireMock = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
+        wireMock.start();
+    }
+
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
     @Autowired
     private NotificationJobRepository jobRepository;
 
     @BeforeAll
-    static void startWireMock() {
-        wireMock.start();
+    static void configureStubs() {
         wireMock.stubFor(get(urlPathMatching("/internal/customers/.*/contact"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -55,11 +67,14 @@ class KafkaNotificationConsumerIT {
                                 {"customerId":"cli-001","clientId":"cli-001","name":"Alice",
                                  "email":"alice@bank.com","phone":"+49123456789"}
                                 """)));
+        wireMock.stubFor(post(urlEqualTo("/send"))
+                .willReturn(aResponse().withStatus(200)));
     }
 
     @AfterAll
-    static void stopWireMock() {
+    static void stopServers() {
         wireMock.stop();
+        greenMail.stop();
     }
 
     @DynamicPropertySource
@@ -68,6 +83,8 @@ class KafkaNotificationConsumerIT {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("services.customer.url", () -> "http://localhost:" + wireMock.port());
+        registry.add("sms.gateway.url", () -> "http://localhost:" + wireMock.port() + "/send");
+        registry.add("spring.mail.port", () -> greenMail.getSmtp().getPort());
     }
 
     @Test
@@ -82,9 +99,9 @@ class KafkaNotificationConsumerIT {
         kafkaTemplate.send("notification.transaction-created", "cli-001", event);
 
         await().atMost(30, TimeUnit.SECONDS)
-                .until(() -> jobRepository.findByStatus(NotificationStatus.SENT).size() > 0
-                        || jobRepository.findByStatus(NotificationStatus.FAILED).size() > 0);
+                .until(() -> !jobRepository.findByStatus(NotificationStatus.SENT).isEmpty());
 
-        assertThat(jobRepository.count()).isGreaterThan(0);
+        assertThat(jobRepository.findByStatus(NotificationStatus.SENT)).hasSize(1);
+        assertThat(greenMail.getReceivedMessages()).hasSize(1);
     }
 }

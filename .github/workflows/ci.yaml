@@ -38,7 +38,9 @@ jobs:
           cache: maven
 
       - name: Build & install banking-commons
-        run: mvn -pl banking-commons install -DskipTests -q
+        run: |
+          mvn install -N -q
+          mvn -pl banking-commons install -DskipTests -q
 
       - name: Cache local Maven repo
         uses: actions/cache@v4
@@ -79,7 +81,9 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
 
       - name: Install banking-commons
-        run: mvn -pl banking-commons install -DskipTests -q
+        run: |
+          mvn install -N -q
+          mvn -pl banking-commons install -DskipTests -q
 
       - name: Run Checkstyle
         run: mvn -pl ${{ matrix.service }} checkstyle:check -q
@@ -130,7 +134,9 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
 
       - name: Install banking-commons
-        run: mvn -pl banking-commons install -DskipTests -q
+        run: |
+          mvn install -N -q
+          mvn -pl banking-commons install -DskipTests -q
 
       - name: Run Unit Tests
         run: |
