@@ -34,7 +34,7 @@
 
 ## 1. Overview
 
-The banking platform was extracted from a Java 11 Spring MVC monolith into five fully independent Spring Boot 3.x microservices using the **Strangler Fig** pattern. Each service is independently deployable, owns its data store, and communicates exclusively via Kafka events (writes) or REST (reads). The shared PostgreSQL schema is gone. There are no cross-service JPA repositories. Monthly releases have been replaced by daily CI/CD pipeline deployments.
+The banking platform was extracted from a Java 11 Spring MVC monolith into five fully independent Spring Boot 4.x (Java 21) microservices using the **Strangler Fig** pattern. Each service is independently deployable, owns its data store, and communicates exclusively via Kafka events (writes) or REST (reads). The shared PostgreSQL schema is gone. There are no cross-service JPA repositories. Monthly releases have been replaced by daily CI/CD pipeline deployments.
 
 This document describes the **complete target-state architecture** — all five services fully decoupled — and explicitly maps all 18 requested microservice patterns to the real components that implement them.
 
@@ -43,12 +43,12 @@ This document describes the **complete target-state architecture** — all five 
 | Concern | Solution |
 |---|---|
 | Edge routing | Kong API Gateway (DB-less, declarative) |
-| Identity | Keycloak 22 (OAuth2 / OIDC / JWT RS256) |
+| Identity | Keycloak 26 (OAuth2 / OIDC / JWT RS256) |
 | Client optimisation | Web BFF, Mobile BFF, BI BFF |
 | Service discovery | Kubernetes DNS (`service.namespace.svc.cluster.local`) |
-| Async messaging | Apache Kafka 3.x (Spring Kafka) |
-| Resilience | Resilience4j 2.x (CB + Retry + Bulkhead + TimeLimiter) |
-| Read model | Elasticsearch 8 + Redis 7 (Reporting Service) |
+| Async messaging | Apache Kafka 4.x (Spring Kafka) |
+| Resilience | Resilience4j 3.x (CB + Retry + Bulkhead + TimeLimiter) |
+| Read model | Elasticsearch 9 + Redis 8 (Reporting Service) |
 | Observability | Prometheus + Grafana + Loki + PagerDuty |
 | Contracts | Pact broker (consumer-driven contract tests) |
 | Deployment | Kubernetes (Helm 3) + GitHub Actions (7-stage pipeline) |
@@ -143,7 +143,7 @@ Three BFF services sit between Kong and the domain services, each optimised for 
 | **Mobile BFF** | iOS / Android mobile app | Strips payload to essential fields; smaller JSON footprint; handles FCM/APNs push token registration |
 | **BI BFF** | Tableau / Metabase | Exposes chunked streaming endpoints and bulk CSV/Parquet export; long-lived HTTP streaming responses |
 
-Each BFF is a separate Spring Boot service with its own Kubernetes Deployment. BFFs call domain services synchronously over Feign (with Resilience4j wrapping) and never access data stores directly.
+Each BFF is a separate Spring Boot 4.x service with its own Kubernetes Deployment. BFFs call domain services synchronously over Feign (with Resilience4j wrapping) and never access data stores directly.
 
 ```mermaid
 graph TB
@@ -239,8 +239,8 @@ graph LR
         TxDB[("PostgreSQL\ntransactions schema")]
         ProdDB[("PostgreSQL\nproducts schema")]
         NotifDB[("PostgreSQL\nnotifications schema")]
-        ES[("Elasticsearch 8\ntransaction_projections")]
-        Redis[("Redis 7\naggregation cache")]
+        ES[("Elasticsearch 9\ntransaction_projections")]
+        Redis[("Redis 8\naggregation cache")]
         RptPG[("PostgreSQL\nreport metadata")]
     end
 
@@ -336,8 +336,8 @@ graph TB
     subgraph QuerySide["Query Side — Reporting Service"]
         Consumers["Kafka Consumers\nTransactionEventConsumer\nLoanEventConsumer\nProductEventConsumer"]
         Projector["Projection Builder\nDenormalised TransactionProjection"]
-        ES[("Elasticsearch 8\ntransaction_projections")]
-        Redis[("Redis 7\n5-min aggregation cache")]
+        ES[("Elasticsearch 9\ntransaction_projections")]
+        Redis[("Redis 8\n5-min aggregation cache")]
         API["REST API\nGET /api/reports/*"]
 
         Consumers --> Projector
@@ -430,7 +430,7 @@ If the bulkhead rejects the call (thread pool full), the circuit breaker and ret
 
 #### Circuit Breaker
 
-Implemented with `resilience4j-spring-boot3`. Each Elasticsearch query and each Feign client call is wrapped:
+Implemented with `resilience4j-spring-boot4`. Each Elasticsearch query and each Feign client call is wrapped:
 
 ```yaml
 resilience4j:
@@ -538,7 +538,7 @@ Every application pod runs two sidecar containers alongside the main application
 graph TB
     subgraph Pod["Kubernetes Pod (any service)"]
         direction LR
-        App["Main Container\nSpring Boot 3.x\n:8080 (HTTP)\n:9090 (JMX)"]
+        App["Main Container\nSpring Boot 4.x (Java 21)\n:8080 (HTTP)\n:9090 (JMX)"]
         JMX["Sidecar: JMX Exporter\nPrometheus metrics\n:8888 /metrics"]
         Fluent["Sidecar: Fluent Bit\nLog shipper\nstdout → Loki"]
     end
@@ -571,7 +571,7 @@ spec:
         - containerPort: 8080
 
     - name: jmx-exporter               # sidecar 1
-      image: prom/jmx_exporter:0.19.0
+      image: prom/jmx_exporter:1.5.0
       ports:
         - containerPort: 8888
       volumeMounts:
@@ -580,7 +580,7 @@ spec:
           subPath: config.yaml
 
     - name: fluent-bit                  # sidecar 2
-      image: fluent/fluent-bit:2.1
+      image: fluent/fluent-bit:4.2.3
       volumeMounts:
         - name: varlog
           mountPath: /var/log
@@ -652,7 +652,7 @@ The Strangler Fig pattern was used to extract all five services from the monolit
 
 1. **Routing layer first** — Nginx placed in front of Tomcat; new service returns 404 for everything initially.
 2. **Kafka producers added to monolith** — Additive-only changes. Monolith publishes domain events alongside its existing writes.
-3. **New service built** — Spring Boot 3.x project, own DB, Kafka consumers.
+3. **New service built** — Spring Boot 4.x project, own DB, Kafka consumers.
 4. **Historical data backfill** — One-time read-only queries against monolith DB read replica; idempotent upsert into new service's data store.
 5. **Feature flag traffic cutover** — Per-`clientId` flags backed by Redis. Traffic shifts gradually: 5% → 20% → 50% → 100%.
 6. **Module decommission** — Source code deleted from monolith, cross-domain JPA repositories removed, Flyway migration drops shared tables.
@@ -767,7 +767,7 @@ All five domain services and all three BFFs are **fully stateless**. No applicat
 | State Type | Stored Where |
 |---|---|
 | User sessions / JWT validation | JWT is stateless (signed by Keycloak); validated locally at Kong using cached JWKS |
-| Report aggregation cache | Redis 7 (TTL: 5 minutes; cluster mode, 3 primary + 3 replica nodes) |
+| Report aggregation cache | Redis 8 (TTL: 5 minutes; cluster mode, 3 primary + 3 replica nodes) |
 | Kafka consumer offsets | Kafka broker (`__consumer_offsets` internal topic); survives pod restart |
 | Uploaded files / exports | AWS S3 (pre-signed URLs returned to client; files never stored on pod disk) |
 | Report configuration | PostgreSQL (Reporting Service metadata DB; read on startup, cached in-process) |
@@ -919,8 +919,8 @@ graph TB
 
         subgraph RptSvc["Reporting Service"]
             RptAPI["REST API\n/api/reports/*\n/api/dashboards/*"]
-            ES[("Elasticsearch 8\ntransaction_projections index\nDenormalised documents")]
-            Redis[("Redis 7\nAggregation cache\nTTL: 5 min")]
+            ES[("Elasticsearch 9\ntransaction_projections index\nDenormalised documents")]
+            Redis[("Redis 8\nAggregation cache\nTTL: 5 min")]
             RptPG[("PostgreSQL\nreporting schema\nTables: report_config,\nscheduled_reports, alert_rules")]
         end
     end

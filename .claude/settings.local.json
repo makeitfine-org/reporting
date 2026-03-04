@@ -92,7 +92,9 @@
       "Bash(git add \"architecture and decoupling.md\" \"communication and ci-cd.md\" \"docs/2-cryptic-crunching-babbage.md\" && git commit -m \"docs: shift all example dates back by 2 years\")",
       "Bash(sleep 10 && curl -si http://localhost:8080/ | head -20)",
       "Bash(curl -si http://localhost:8080/ 2>&1 | head -20)",
-      "Bash(docker ps -a --format \"table {{.Names}}\\\\t{{.Status}}\\\\t{{.Ports}}\")"
+      "Bash(docker ps -a --format \"table {{.Names}}\\\\t{{.Status}}\\\\t{{.Ports}}\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
