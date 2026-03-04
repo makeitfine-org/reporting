@@ -1,25 +1,25 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/reporting
-    username: reporting
-    password: reporting
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/reporting}
+    username: ${POSTGRES_USER:reporting}
+    password: ${POSTGRES_PASSWORD:reporting}
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
     elasticsearch:
-      uris: http://localhost:9200
+      uris: ${ES_URIS:http://localhost:9200}
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: http://localhost:8180/realms/banking/protocol/openid-connect/certs
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/banking/protocol/openid-connect/certs}
 
 logging:
   level:
