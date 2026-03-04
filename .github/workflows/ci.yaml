@@ -146,6 +146,14 @@ jobs:
 
       - name: Run Integration Tests (Testcontainers)
         run: |
+          mvn -pl ${{ matrix.service }} integration-test \
+            -Dtest="${{ matrix.it-pattern }}" \
+            -Dsurefire.failIfNoSpecifiedTests=false
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+
+      - name: Run Verification (Coverage)
+        run: |
           mvn -pl ${{ matrix.service }} verify \
             -Dtest="${{ matrix.it-pattern }}" \
             -Dsurefire.failIfNoSpecifiedTests=false
