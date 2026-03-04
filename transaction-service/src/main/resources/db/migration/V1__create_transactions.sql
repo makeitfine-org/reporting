@@ -5,7 +5,7 @@ CREATE TABLE transactions
     product_id    VARCHAR(100)   NOT NULL,
     product_type  VARCHAR(50),
     amount        DECIMAL(19, 4) NOT NULL,
-    currency      CHAR(3)        NOT NULL,
+    currency      VARCHAR(3)     NOT NULL,
     status        VARCHAR(20)    NOT NULL DEFAULT 'PROCESSING',
     transacted_at TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
@@ -20,7 +20,7 @@ CREATE TABLE loan_events
     loan_id        VARCHAR(100)   NOT NULL,
     client_id      VARCHAR(100)   NOT NULL,
     amount         DECIMAL(19, 4) NOT NULL,
-    currency       CHAR(3)        NOT NULL,
+    currency       VARCHAR(3)     NOT NULL,
     status         VARCHAR(20)    NOT NULL,
     occurred_at    TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
