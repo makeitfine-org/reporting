@@ -1,6 +1,7 @@
 package com.banking.notification.integration;
 
 import com.banking.notification.domain.NotificationStatus;
+import com.banking.notification.infrastructure.kafka.event.TransactionCreatedEvent;
 import com.banking.notification.infrastructure.postgres.repository.NotificationJobRepository;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
@@ -17,6 +18,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -68,13 +71,15 @@ class KafkaNotificationConsumerIT {
     }
 
     @Test
-    void transactionCreatedEvent_createsNotificationJob() throws Exception {
-        String payload = """
-                {"transactionId":"tx-it-001","clientId":"cli-001",
-                 "amount":5000,"currency":"EUR","transactedAt":"2026-01-01T10:00:00Z"}
-                """;
+    void transactionCreatedEvent_createsNotificationJob() {
+        TransactionCreatedEvent event = new TransactionCreatedEvent();
+        event.setTransactionId("tx-it-001");
+        event.setClientId("cli-001");
+        event.setAmount(new BigDecimal("5000"));
+        event.setCurrency("EUR");
+        event.setTransactedAt(Instant.parse("2026-01-01T10:00:00Z"));
 
-        kafkaTemplate.send("notification.transaction-created", "cli-001", payload);
+        kafkaTemplate.send("notification.transaction-created", "cli-001", event);
 
         await().atMost(30, TimeUnit.SECONDS)
                 .until(() -> jobRepository.findByStatus(NotificationStatus.SENT).size() > 0
