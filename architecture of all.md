@@ -43,7 +43,6 @@ This document describes the **complete target-state architecture** — all five 
 | Concern | Solution |
 |---|---|
 | Edge routing | Kong API Gateway (DB-less, declarative) |
-| Identity | Keycloak 26 (OAuth2 / OIDC / JWT RS256) |
 | Client optimisation | Web BFF, Mobile BFF, BI BFF |
 | Service discovery | Kubernetes DNS (`service.namespace.svc.cluster.local`) |
 | Async messaging | Apache Kafka 4.x (Spring Kafka) |
@@ -74,9 +73,8 @@ Plus infrastructure and BFF layer:
 | **Web BFF** | Aggregates Customer + Transaction + Reporting for branch manager web UI |
 | **Mobile BFF** | Lightweight response shaping for mobile clients (smaller payloads, push integration) |
 | **BI BFF** | Bulk export + streaming API for Tableau / Metabase |
-| **Kong API Gateway** | Edge routing, JWT validation, rate limiting, correlation-ID injection |
+| **Kong API Gateway** | Edge routing, rate limiting, correlation-ID injection |
 | **Apache Kafka** | Event bus — `reporting.*`, `notification.*`, `audit.*` topic families |
-| **Keycloak** | OAuth2 / OIDC identity provider; issues RS256 JWT tokens |
 
 ---
 
@@ -86,7 +84,7 @@ Quick-reference table: all 18 patterns and where they live in the platform.
 
 | # | Pattern | Component(s) |
 |---|---|---|
-| 1 | **API Gateway** | Kong (DB-less mode) — edge routing, JWT, rate limiting, `X-Correlation-Id` injection |
+| 1 | **API Gateway** | Kong (DB-less mode) — edge routing, rate limiting, `X-Correlation-Id` injection |
 | 2 | **BFF (Backend for Frontend)** | Web BFF, Mobile BFF, BI BFF — each aggregates different downstream APIs |
 | 3 | **Service Discovery** | Kubernetes DNS — `service-name.namespace.svc.cluster.local`; no Eureka |
 | 4 | **Circuit Breaker** | Resilience4j `CircuitBreaker` on every Feign client and Elasticsearch queries |
@@ -117,7 +115,6 @@ Kong operates in **DB-less declarative mode**. The full gateway configuration li
 
 **Kong responsibilities:**
 
-- **JWT validation**: RS256 bearer tokens validated against Keycloak's JWKS endpoint. Public keys are cached locally (24-hour TTL) — no per-request roundtrip to Keycloak on the hot path.
 - **Rate limiting**: Per-consumer sliding-window limits enforced at the gateway before requests reach services (300 req/min for customer routes, 600 req/min for transactions).
 - **SSL termination**: TLS 1.3 terminated at Kong; inter-cluster traffic is plain HTTP.
 - **`X-Correlation-Id` injection**: Kong generates a UUID v4 if absent and injects it before forwarding. All downstream services propagate it through to their log output and downstream calls.
@@ -153,7 +150,7 @@ graph TB
         BI["BI Tools (Tableau/Metabase)"]
     end
 
-    Kong["Kong API Gateway\nJWT · Rate Limit · Correlation-ID"]
+    Kong["Kong API Gateway\nRate Limit · Correlation-ID"]
 
     subgraph BFF["BFF Layer"]
         WebBFF["Web BFF\nAggregates: Customer + Transaction + Reporting"]
@@ -766,7 +763,6 @@ All five domain services and all three BFFs are **fully stateless**. No applicat
 
 | State Type | Stored Where |
 |---|---|
-| User sessions / JWT validation | JWT is stateless (signed by Keycloak); validated locally at Kong using cached JWKS |
 | Report aggregation cache | Redis 8 (TTL: 5 minutes; cluster mode, 3 primary + 3 replica nodes) |
 | Kafka consumer offsets | Kafka broker (`__consumer_offsets` internal topic); survives pod restart |
 | Uploaded files / exports | AWS S3 (pre-signed URLs returned to client; files never stored on pod disk) |
@@ -789,8 +785,7 @@ C4Context
     Person(ops, "Platform Ops", "Manages infrastructure")
 
     System_Boundary(platform, "Banking Platform (Kubernetes — banking namespace)") {
-        System(kong, "Kong API Gateway", "JWT validation, rate limiting, routing, correlation-ID injection")
-        System(keycloak, "Keycloak", "OAuth2 / OIDC identity provider — issues RS256 JWT")
+        System(kong, "Kong API Gateway", "Rate limiting, routing, correlation-ID injection")
         System(webBFF, "Web BFF", "Aggregates data for branch manager web UI")
         System(mobileBFF, "Mobile BFF", "Lightweight API for mobile clients")
         System(biBFF, "BI BFF", "Bulk export / streaming for BI tools")
@@ -811,7 +806,6 @@ C4Context
     Rel(analyst, kong, "HTTPS — web UI via Web BFF")
     Rel(customer, kong, "HTTPS — mobile via Mobile BFF")
     Rel(bi, kong, "HTTPS — BI via BI BFF")
-    Rel(kong, keycloak, "JWKS fetch (cached 24h)", "HTTPS")
     Rel(kong, webBFF, "Routes /web/*")
     Rel(kong, mobileBFF, "Routes /mobile/*")
     Rel(kong, biBFF, "Routes /bi/*")
@@ -1051,7 +1045,7 @@ Complete cross-reference: all 18 patterns, where each is implemented, and the se
 
 | # | Pattern | Primary Component(s) | Section |
 |---|---|---|---|
-| 1 | **API Gateway** | Kong (DB-less, JWT, rate limiting, correlation-ID) | [4.1](#41-api-gateway--bff-layer) |
+| 1 | **API Gateway** | Kong (DB-less, rate limiting, correlation-ID) | [4.1](#41-api-gateway--bff-layer) |
 | 2 | **BFF** | Web BFF, Mobile BFF, BI BFF | [4.1](#41-api-gateway--bff-layer) |
 | 3 | **Service Discovery** | Kubernetes DNS — no Eureka | [4.2](#42-service-discovery) |
 | 4 | **Circuit Breaker** | Resilience4j on Feign clients + Elasticsearch | [4.7](#47-resilience-patterns-circuit-breaker-bulkhead-retry) |
