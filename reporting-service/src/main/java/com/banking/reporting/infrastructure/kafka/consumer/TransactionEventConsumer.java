@@ -22,9 +22,9 @@ public class TransactionEventConsumer {
     private final TransactionProjectionRepository projectionRepository;
 
     @KafkaListener(
-        topics = "reporting.transaction-created",
-        groupId = "reporting-service",
-        containerFactory = "reportingKafkaListenerFactory"
+            topics = "reporting.transaction-created",
+            groupId = "reporting-service",
+            containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleTransactionCreated(
             @Payload TransactionCreatedEvent event,
@@ -55,9 +55,9 @@ public class TransactionEventConsumer {
     }
 
     @KafkaListener(
-        topics = "reporting.transaction-reversed",
-        groupId = "reporting-service",
-        containerFactory = "reportingKafkaListenerFactory"
+            topics = "reporting.transaction-reversed",
+            groupId = "reporting-service",
+            containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleTransactionReversed(
             @Payload TransactionReversedEvent event,
@@ -84,9 +84,9 @@ public class TransactionEventConsumer {
     }
 
     @KafkaListener(
-        topics = "reporting.chargeback-processed",
-        groupId = "reporting-service",
-        containerFactory = "reportingKafkaListenerFactory"
+            topics = "reporting.chargeback-processed",
+            groupId = "reporting-service",
+            containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleChargebackProcessed(
             @Payload ChargebackProcessedEvent event,

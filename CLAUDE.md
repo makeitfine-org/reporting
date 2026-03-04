@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Purpose
 
-Interview prep docs + Spring Boot 3.5 / Java 21 microservice (CQRS read model, extracted from Java 11 monolith via Strangler Fig).
+Interview prep docs + Spring Boot 3.5 / Java 21 microservice (CQRS read model, extracted from Java 11 monolith via
+Strangler Fig).
 
 ## Key Documents
 
@@ -28,7 +29,8 @@ REST API (Spring MVC + OAuth2/Keycloak)
 
 **Package root:** `com.banking.reporting`
 
-**Layers:** `api/` (controllers, DTOs, GlobalExceptionHandler RFC 7807) → `application/` (ReportQueryService, DashboardService) → `domain/` (models, exceptions) → `infrastructure/` (kafka/, elasticsearch/, postgres/, redis/)
+**Layers:** `api/` (controllers, DTOs, GlobalExceptionHandler RFC 7807) → `application/` (ReportQueryService,
+DashboardService) → `domain/` (models, exceptions) → `infrastructure/` (kafka/, elasticsearch/, postgres/, redis/)
 
 ## Commands
 

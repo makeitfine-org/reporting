@@ -1,11 +1,12 @@
 package com.banking.reporting.unit;
 
 import com.banking.reporting.api.dto.*;
-import com.banking.reporting.infrastructure.postgres.entity.*;
+import com.banking.reporting.infrastructure.postgres.entity.AlertRule;
+import com.banking.reporting.infrastructure.postgres.entity.ReportConfig;
+import com.banking.reporting.infrastructure.postgres.entity.ScheduledReport;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

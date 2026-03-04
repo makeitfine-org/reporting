@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -16,11 +16,16 @@
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>Reporting Platform — Parent</name>
-    <description>Multi-module Maven parent for the Banking Reporting Microservice</description>
+    <name>Banking Platform — Parent</name>
+    <description>Multi-module Maven parent for the Banking Microservices Platform</description>
 
     <modules>
+        <module>banking-commons</module>
         <module>reporting-service</module>
+        <module>customer-service</module>
+        <module>transaction-service</module>
+        <module>product-service</module>
+        <module>notification-service</module>
     </modules>
 
     <properties>
@@ -30,11 +35,13 @@
 
         <!-- Dependency versions -->
         <spring-boot.version>3.5.1</spring-boot.version>
+        <spring-cloud.version>2024.0.1</spring-cloud.version>
         <resilience4j.version>2.2.0</resilience4j.version>
         <springdoc.version>2.8.4</springdoc.version>
         <testcontainers.version>1.19.6</testcontainers.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <jmh.version>1.37</jmh.version>
+        <wiremock.version>3.3.1</wiremock.version>
 
         <!-- Plugin versions -->
         <checkstyle-plugin.version>3.6.0</checkstyle-plugin.version>
@@ -45,6 +52,30 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Internal modules -->
+            <dependency>
+                <groupId>com.banking</groupId>
+                <artifactId>banking-commons</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Spring Cloud (OpenFeign) -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- WireMock -->
+            <dependency>
+                <groupId>org.wiremock</groupId>
+                <artifactId>wiremock-standalone</artifactId>
+                <version>${wiremock.version}</version>
+                <scope>test</scope>
+            </dependency>
+
             <dependency>
                 <groupId>io.github.resilience4j</groupId>
                 <artifactId>resilience4j-bom</artifactId>
@@ -78,6 +109,34 @@
     </dependencyManagement>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Configured here; services must declare it in their own <build><plugins> -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <excludes>
+                            <exclude>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                            </exclude>
+                        </excludes>
+                        <layers>
+                            <enabled>true</enabled>
+                        </layers>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -93,28 +152,6 @@
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                    <layers>
-                        <enabled>true</enabled>
-                    </layers>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

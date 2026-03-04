@@ -1,0 +1,92 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/banking/notification-service
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8084
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: notifications.banking.internal
+      paths:
+        - path: /api/notifications
+          pathType: Prefix
+  tls: [ ]
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "2000m"
+    memory: "1Gi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8084
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8084
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# ConfigMap environment variables
+config:
+  postgresUrl: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/notifications"
+  postgresUser: "notifications"
+  kafkaBootstrapServers: "kafka.infra.svc.cluster.local:9092"
+  customerServiceUrl: "http://customer-service.default.svc.cluster.local:8081"
+  smtpHost: "smtp.infra.svc.cluster.local"
+  smtpPort: "587"
+  logLevel: "INFO"
+
+# Secrets (base64-encoded in production; use Vault/SOPS in practice)
+secrets:
+  postgresPassword: "bm90aWZpY2F0aW9ucw=="  # 'notifications' base64
+  kafkaPassword: ""
+
+nodeSelector: { }
+tolerations: [ ]
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - notification-service
+          topologyKey: kubernetes.io/hostname

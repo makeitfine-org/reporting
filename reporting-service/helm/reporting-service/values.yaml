@@ -22,7 +22,7 @@ ingress:
       paths:
         - path: /api/reports
           pathType: Prefix
-  tls: []
+  tls: [ ]
 
 resources:
   requests:
@@ -77,8 +77,8 @@ secrets:
   postgresPassword: "cmVwb3J0aW5n"  # 'reporting' base64
   kafkaPassword: ""
 
-nodeSelector: {}
-tolerations: []
+nodeSelector: { }
+tolerations: [ ]
 affinity:
   podAntiAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:

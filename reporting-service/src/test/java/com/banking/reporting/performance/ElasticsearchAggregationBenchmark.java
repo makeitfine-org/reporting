@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * JMH benchmark for Elasticsearch aggregation query latency.
  * Run with: java -jar target/benchmarks.jar ElasticsearchAggregationBenchmark
- *
+ * <p>
  * This benchmark requires a running Elasticsearch instance and is meant
  * to be run in a staging environment, not as part of the standard test suite.
  */

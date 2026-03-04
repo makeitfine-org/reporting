@@ -21,9 +21,9 @@ public class ProductEventConsumer {
     private final TransactionProjectionRepository projectionRepository;
 
     @KafkaListener(
-        topics = "reporting.product-rate-updated",
-        groupId = "reporting-service",
-        containerFactory = "reportingKafkaListenerFactory"
+            topics = "reporting.product-rate-updated",
+            groupId = "reporting-service",
+            containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleProductRateUpdated(
             @Payload ProductRateUpdatedEvent event,

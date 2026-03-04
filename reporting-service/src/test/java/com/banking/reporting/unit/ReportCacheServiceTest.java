@@ -5,7 +5,6 @@ import com.banking.reporting.api.dto.RevenueReportDto;
 import com.banking.reporting.infrastructure.redis.ReportCacheService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -99,7 +98,8 @@ class ReportCacheServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn("invalid-json");
         when(objectMapper.readValue(anyString(), eq(FinancialReportDto.class)))
-                .thenThrow(new JsonProcessingException("error") {});
+                .thenThrow(new JsonProcessingException("error") {
+                });
 
         Optional<FinancialReportDto> result = reportCacheService.getFinancialReport("cli-001", "2022-01");
 
@@ -109,7 +109,8 @@ class ReportCacheServiceTest {
     @Test
     void putToCache_handlesJsonError() throws JsonProcessingException {
         // No redisTemplate.opsForValue() called if writeValueAsString fails
-        when(objectMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("error") {});
+        when(objectMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("error") {
+        });
 
         reportCacheService.putFinancialReport("cli-001", "2022-01", new FinancialReportDto());
 

@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/notifications
+    username: notifications
+    password: notifications
+  kafka:
+    bootstrap-servers: localhost:9092
+  mail:
+    host: localhost
+    port: 1025
+
+services:
+  customer:
+    url: http://localhost:8081

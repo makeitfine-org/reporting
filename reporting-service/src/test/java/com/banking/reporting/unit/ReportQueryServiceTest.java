@@ -4,8 +4,8 @@ import com.banking.reporting.api.dto.FinancialReportDto;
 import com.banking.reporting.api.dto.RevenueReportDto;
 import com.banking.reporting.application.ReportQueryService;
 import com.banking.reporting.domain.exception.ResourceNotFoundException;
-import com.banking.reporting.infrastructure.elasticsearch.repository.TransactionProjectionRepository;
 import com.banking.reporting.infrastructure.elasticsearch.document.TransactionProjection;
+import com.banking.reporting.infrastructure.elasticsearch.repository.TransactionProjectionRepository;
 import com.banking.reporting.infrastructure.postgres.entity.ReportConfig;
 import com.banking.reporting.infrastructure.postgres.repository.ReportConfigRepository;
 import com.banking.reporting.infrastructure.redis.ReportCacheService;
@@ -22,27 +22,23 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReportQueryServiceTest {
 
-    @Mock
-    private TransactionProjectionRepository projectionRepository;
-
-    @Mock
-    private ReportConfigRepository reportConfigRepository;
-
-    @Mock
-    private ReportCacheService cacheService;
-
-    @InjectMocks
-    private ReportQueryService reportQueryService;
-
     private static final String CLIENT_ID = "cli-001";
     private static final String PERIOD = "2022-01";
-
+    @Mock
+    private TransactionProjectionRepository projectionRepository;
+    @Mock
+    private ReportConfigRepository reportConfigRepository;
+    @Mock
+    private ReportCacheService cacheService;
+    @InjectMocks
+    private ReportQueryService reportQueryService;
     private ReportConfig reportConfig;
 
     @BeforeEach

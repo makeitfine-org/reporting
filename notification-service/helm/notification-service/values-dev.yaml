@@ -1,0 +1,26 @@
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+config:
+  kafkaBootstrapServers: "kafka.infra.svc.cluster.local:9092"
+  logLevel: "DEBUG"
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "512Mi"
+
+podDisruptionBudget:
+  enabled: false
+
+ingress:
+  hosts:
+    - host: notifications-dev.banking.internal
+      paths:
+        - path: /api/notifications
+          pathType: Prefix

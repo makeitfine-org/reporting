@@ -14,7 +14,7 @@ Parameters:
   MultiAZ:
     Type: String
     Default: "true"
-    AllowedValues: ["true", "false"]
+    AllowedValues: [ "true", "false" ]
   VpcId:
     Type: AWS::EC2::VPC::Id
   SubnetIds:

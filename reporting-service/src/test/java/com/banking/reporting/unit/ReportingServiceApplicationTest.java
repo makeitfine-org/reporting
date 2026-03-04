@@ -2,11 +2,8 @@ package com.banking.reporting.unit;
 
 import com.banking.reporting.ReportingServiceApplication;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.SpringApplication;
-import org.springframework.context.ConfigurableApplicationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
 
 class ReportingServiceApplicationTest {
 

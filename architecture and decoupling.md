@@ -19,41 +19,44 @@
 
 ### Overview
 
-The platform was a Java 11 / Spring MVC monolith that had grown organically over six years. Originally built for a handful of internal users, it now served 50+ bank branches managing hundreds of thousands of customer daily financial transactions. The codebase lived in a single Maven multi-module project deployed as a WAR to bare-metal VMs running Tomcat, with a single PostgreSQL 13 database shared across all business domains.
+The platform was a Java 11 / Spring MVC monolith that had grown organically over six years. Originally built for a
+handful of internal users, it now served 50+ bank branches managing hundreds of thousands of customer daily financial
+transactions. The codebase lived in a single Maven multi-module project deployed as a WAR to bare-metal VMs running
+Tomcat, with a single PostgreSQL 13 database shared across all business domains.
 
 ### Technology Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Java 11 |
-| Framework | Spring MVC 5.x (not Spring Boot) |
-| Build | Maven multi-module (monorepo WAR) |
-| Database | PostgreSQL 13 — single shared schema |
-| ORM | Hibernate 5 + JPA repositories |
-| Frontend | Thymeleaf templates |
-| APIs | Spring MVC `@RestController` |
-| Deployment | Tomcat WAR on bare-metal VMs |
-| CI/CD | Jenkins — monthly release cadence |
-| Migrations | Flyway |
+| Layer      | Technology                           |
+|------------|--------------------------------------|
+| Language   | Java 11                              |
+| Framework  | Spring MVC 5.x (not Spring Boot)     |
+| Build      | Maven multi-module (monorepo WAR)    |
+| Database   | PostgreSQL 13 — single shared schema |
+| ORM        | Hibernate 5 + JPA repositories       |
+| Frontend   | Thymeleaf templates                  |
+| APIs       | Spring MVC `@RestController`         |
+| Deployment | Tomcat WAR on bare-metal VMs         |
+| CI/CD      | Jenkins — monthly release cadence    |
+| Migrations | Flyway                               |
 
 ### Internal Module Structure
 
-The monolith was organized into five Maven modules, all sharing the same Spring application context and the same PostgreSQL schema:
+The monolith was organized into five Maven modules, all sharing the same Spring application context and the same
+PostgreSQL schema:
 
-| Module | Responsibility |
-|---|---|
-| `customer-module` | KYC, customer profiles, authentication |
-| `transaction-module` | Payment processing, transfers, account management |
-| `product-module` | Bank product catalog, interest rates, terms |
-| `notification-module` | Email and SMS dispatch |
-| `reporting-module` | Financial reports, banking dashboards, analytics |
+| Module                | Responsibility                                    |
+|-----------------------|---------------------------------------------------|
+| `customer-module`     | KYC, customer profiles, authentication            |
+| `transaction-module`  | Payment processing, transfers, account management |
+| `product-module`      | Bank product catalog, interest rates, terms       |
+| `notification-module` | Email and SMS dispatch                            |
+| `reporting-module`    | Financial reports, banking dashboards, analytics  |
 
 ### System Context Diagram
 
 ```mermaid
 C4Context
     title System Context — Monolith Era
-
     Person(bankAnalyst, "Branch Manager / Bank Analyst", "Reviews financial reports and dashboards")
     Person(ops, "Ops Team", "Manages deployments, monitors system health")
 
@@ -68,7 +71,6 @@ C4Context
     SystemDb(postgres, "PostgreSQL 13", "Single shared database — all modules share schema")
     System_Ext(smtp, "SMTP / SMS Gateway", "External notification delivery")
     System_Ext(settlement, "Interbank Settlement", "SWIFT / SEPA network")
-
     Rel(bankAnalyst, reporting, "Uses", "HTTPS")
     Rel(ops, customer, "Deploys & Monitors", "SSH / Jenkins")
     Rel(reporting, postgres, "Reads & Writes", "JDBC / Hibernate")
@@ -80,34 +82,36 @@ C4Context
 
 ```mermaid
 graph TD
-    subgraph Monolith["Core Banking Monolith (Maven WAR)"]
-        UM[customer-module<br/>KYC · Profiles]
-        OM[transaction-module<br/>Payments · Transfers · Account Ops]
-        IM[product-module<br/>Bank Products · Rates · Terms]
-        NM[notification-module<br/>Email · SMS]
-        RM[reporting-module<br/>Reports · Dashboards]
-    end
+subgraph Monolith["Core Banking Monolith (Maven WAR)"]
+UM[customer-module<br/>KYC · Profiles]
+OM[transaction-module<br/>Payments · Transfers · Account Ops]
+IM[product-module<br/>Bank Products · Rates · Terms]
+NM[notification-module<br/>Email · SMS]
+RM[reporting-module<br/>Reports · Dashboards]
+end
 
-    DB[(PostgreSQL 13<br/>Shared Schema)]
+DB[(PostgreSQL 13<br/>Shared Schema)]
 
-    OM -->|depends on| UM
-    OM -->|depends on| IM
-    NM -->|depends on| OM
-    RM -->|direct DB joins across| OM
-    RM -->|direct DB joins across| IM
-    RM -->|direct DB joins across| UM
+OM -->|depends on|UM
+OM -->|depends on|IM
+NM -->|depends on| OM
+RM -->|direct DB joins across| OM
+RM -->|direct DB joins across| IM
+RM -->|direct DB joins across| UM
 
-    UM --> DB
-    OM --> DB
-    IM --> DB
-    NM --> DB
-    RM --> DB
+UM --> DB
+OM --> DB
+IM --> DB
+NM --> DB
+RM --> DB
 
-    style RM fill:#ff6b6b,color:#fff
-    style DB fill:#4ecdc4,color:#fff
+style RM fill: #ff6b6b,color: #fff
+style DB fill: #4ecdc4,color: #fff
 ```
 
-> **Note:** The `reporting-module` had no service layer abstraction — it issued raw multi-table JOIN queries directly against the shared schema, spanning cross-domain joins across banking transaction, product, and customer data. This is where the pain began.
+> **Note:** The `reporting-module` had no service layer abstraction — it issued raw multi-table JOIN queries directly
+> against the shared schema, spanning cross-domain joins across banking transaction, product, and customer data. This is
+> where the pain began.
 
 ### The Pain: Report Generation Sequence
 
@@ -117,25 +121,18 @@ sequenceDiagram
     participant API as Spring MVC Controller<br/>(reporting-module)
     participant Service as ReportService
     participant DB as PostgreSQL 13<br/>(Shared Schema)
-
-    BankAnalyst->>API: GET /reports/financial?month=2022-01
-    API->>Service: generateMonthlyFinancialReport(month)
-
-    Service->>DB: BEGIN TRANSACTION
-    Service->>DB: SELECT t.*, l.*, pr.*, c.*<br/>FROM transactions t<br/>JOIN loan_events l ON ...<br/>JOIN transaction_items ti ON ...<br/>JOIN products pr ON ...<br/>JOIN customers c ON ...<br/>WHERE t.transacted_at BETWEEN ... (120s query)
-
+    BankAnalyst ->> API: GET /reports/financial?month=2022-01
+    API ->> Service: generateMonthlyFinancialReport(month)
+    Service ->> DB: BEGIN TRANSACTION
+    Service ->> DB: SELECT t.*, l.*, pr.*, c.*<br/>FROM transactions t<br/>JOIN loan_events l ON ...<br/>JOIN transaction_items ti ON ...<br/>JOIN products pr ON ...<br/>JOIN customers c ON ...<br/>WHERE t.transacted_at BETWEEN ... (120s query)
     Note over DB: TABLE LOCK acquired<br/>on transactions, loan_events,<br/>products tables
-
-    DB-->>Service: 500k+ rows returned
-    Service->>Service: Aggregate in Java heap<br/>(group-by, sum, pivot)
-    Service->>DB: COMMIT
-
+    DB -->> Service: 500k+ rows returned
+    Service ->> Service: Aggregate in Java heap<br/>(group-by, sum, pivot)
+    Service ->> DB: COMMIT
     Note over DB: Locks released — other<br/>modules unblocked
-
-    Service-->>API: ReportDTO
-    API-->>BankAnalyst: JSON response (after ~120 seconds)
-
-    Note over BankAnalyst,DB: During report generation:<br/>transaction processing is degraded,<br/>product rate updates are slow,<br/>DB CPU spikes to 95%
+    Service -->> API: ReportDTO
+    API -->> BankAnalyst: JSON response (after ~120 seconds)
+    Note over BankAnalyst, DB: During report generation:<br/>transaction processing is degraded,<br/>product rate updates are slow,<br/>DB CPU spikes to 95%
 ```
 
 ---
@@ -146,13 +143,15 @@ sequenceDiagram
 
 By Q3 2021, the situation had deteriorated to the point of business risk:
 
-- **120-second report generation** caused browser timeouts for branch managers and compliance officers — support tickets were piling up
+- **120-second report generation** caused browser timeouts for branch managers and compliance officers — support tickets
+  were piling up
 - **Monthly releases** meant bug fixes took weeks to ship; compliance reporting SLAs were at risk
 - **Table locks** during report queries caused transaction processing failures (revenue impact)
 - **Primary DB CPU spiked to 95%** during business hours when multiple branches ran reports simultaneously
 - **A new real-time banking analytics dashboard** was on the product roadmap — impossible with the current architecture
 
-The mandate from engineering leadership: **extract the reporting domain into a standalone microservice without disrupting the existing monolith or banking operations**.
+The mandate from engineering leadership: **extract the reporting domain into a standalone microservice without
+disrupting the existing monolith or banking operations**.
 
 ### Constraints
 
@@ -167,17 +166,22 @@ The mandate from engineering leadership: **extract the reporting domain into a s
 
 ### Step 1 — Identify the Bounded Context (DDD Analysis)
 
-The first step was a Domain-Driven Design workshop with the team and product owners. We mapped the reporting domain's ubiquitous language, entities, and aggregate boundaries:
+The first step was a Domain-Driven Design workshop with the team and product owners. We mapped the reporting domain's
+ubiquitous language, entities, and aggregate boundaries:
 
 - **Reporting domain owns:** `Report`, `ReportSnapshot`, `ClientMetrics`, `DashboardWidget`
-- **Reporting domain consumes (read-only):** `Transaction`, `LoanEvent`, `BankProduct`, `Customer` — but only as *read projections*, not authoritative state
-- **Key insight:** Reporting is a pure *read model* domain. It never mutates orders or payments. This made it an ideal CQRS candidate.
+- **Reporting domain consumes (read-only):** `Transaction`, `LoanEvent`, `BankProduct`, `Customer` — but only as *read
+  projections*, not authoritative state
+- **Key insight:** Reporting is a pure *read model* domain. It never mutates orders or payments. This made it an ideal
+  CQRS candidate.
 
-The reporting module had no legitimate reason to share a database with the transactional modules. Every cross-domain join was a symptom of missing domain boundaries.
+The reporting module had no legitimate reason to share a database with the transactional modules. Every cross-domain
+join was a symptom of missing domain boundaries.
 
 ### Step 2 — Strangler Fig Pattern: Route Traffic Gradually
 
-Before writing a single line of new service code, we set up the routing infrastructure. An Nginx reverse proxy was placed in front of Tomcat:
+Before writing a single line of new service code, we set up the routing infrastructure. An Nginx reverse proxy was
+placed in front of Tomcat:
 
 ```mermaid
 graph LR
@@ -185,13 +189,11 @@ graph LR
     Nginx["Nginx Reverse Proxy"]
     Monolith["Monolith (Tomcat WAR)"]
     NewService["Reporting Microservice (Spring Boot)"]
-
     Merchant -->|HTTPS| Nginx
-    Nginx -->|"/reports/* → NEW"| NewService
-    Nginx -->|"Everything else → MONOLITH"| Monolith
-
-    style NewService fill:#51cf66,color:#fff
-    style Monolith fill:#ffd43b,color:#000
+    Nginx -->|" /reports/* → NEW "| NewService
+    Nginx -->|" Everything else → MONOLITH "| Monolith
+    style NewService fill: #51cf66, color: #fff
+    style Monolith fill: #ffd43b, color: #000
 ```
 
 **Nginx location config (simplified):**
@@ -214,21 +216,23 @@ location / {
 }
 ```
 
-At this stage, the new service returned 404 for everything — but the routing layer was in place. We could flip traffic with a config reload, no deployment needed.
+At this stage, the new service returned 404 for everything — but the routing layer was in place. We could flip traffic
+with a config reload, no deployment needed.
 
 ### Step 3 — Add Kafka Producers to the Monolith
 
-We instrumented the monolith's service layer with Kafka producers at key transaction boundaries. This was the most politically sensitive step — touching the monolith — so changes were minimal and additive only.
+We instrumented the monolith's service layer with Kafka producers at key transaction boundaries. This was the most
+politically sensitive step — touching the monolith — so changes were minimal and additive only.
 
 **Events published by monolith:**
 
-| Event | Published By | Payload |
-|---|---|---|
-| `TransactionCreated` | `TransactionService.processTransaction()` | transactionId, clientId, productType, amount, timestamp |
-| `LoanDisbursed` | `LoanService.disburseLoan()` | transactionId, loanId, amount, currency, status |
-| `TransactionReversed` | `TransactionService.cancelTransaction()` | transactionId, clientId, reason, timestamp |
-| `ProductRateUpdated` | `ProductService.updateProductRate()` | productId, clientId, newRate, previousRate |
-| `ChargebackProcessed` | `LoanService.processChargeback()` | loanId, transactionId, amount, timestamp |
+| Event                 | Published By                              | Payload                                                 |
+|-----------------------|-------------------------------------------|---------------------------------------------------------|
+| `TransactionCreated`  | `TransactionService.processTransaction()` | transactionId, clientId, productType, amount, timestamp |
+| `LoanDisbursed`       | `LoanService.disburseLoan()`              | transactionId, loanId, amount, currency, status         |
+| `TransactionReversed` | `TransactionService.cancelTransaction()`  | transactionId, clientId, reason, timestamp              |
+| `ProductRateUpdated`  | `ProductService.updateProductRate()`      | productId, clientId, newRate, previousRate              |
+| `ChargebackProcessed` | `LoanService.processChargeback()`         | loanId, transactionId, amount, timestamp                |
 
 **Example Kafka producer added to monolith's `TransactionService`:**
 
@@ -259,6 +263,7 @@ public class TransactionService {
 ```
 
 ```java
+
 @Component
 public class ReportingEventPublisher {
 
@@ -267,20 +272,21 @@ public class ReportingEventPublisher {
 
     public void publishTransactionCreated(Transaction tx) {
         TransactionCreatedEvent event = TransactionCreatedEvent.builder()
-            .transactionId(tx.getId())
-            .clientId(tx.getClientId())
-            .amount(tx.getAmount())
-            .currency(tx.getCurrency())
-            .productType(tx.getProductType())
-            .occurredAt(Instant.now())
-            .build();
+                .transactionId(tx.getId())
+                .clientId(tx.getClientId())
+                .amount(tx.getAmount())
+                .currency(tx.getCurrency())
+                .productType(tx.getProductType())
+                .occurredAt(Instant.now())
+                .build();
 
         kafkaTemplate.send("reporting.transaction-created", tx.getClientId(), event);
     }
 }
 ```
 
-Kafka topics used `clientId` as the partition key — ensuring per-client ordering guarantees while allowing parallelism across clients.
+Kafka topics used `clientId` as the partition key — ensuring per-client ordering guarantees while allowing parallelism
+across clients.
 
 ### Step 4 — Stand Up the Reporting Microservice
 
@@ -306,6 +312,7 @@ reporting-service/
 **Key dependencies in `pom.xml`:**
 
 ```xml
+
 <dependencies>
     <dependency>
         <groupId>org.springframework.boot</groupId>
@@ -336,7 +343,8 @@ reporting-service/
 
 ### Step 5 — Elasticsearch Read Model
 
-Instead of running joins against PostgreSQL, the new service materializes denormalized documents in Elasticsearch — one document per transaction enriched with all the data reporting needs:
+Instead of running joins against PostgreSQL, the new service materializes denormalized documents in Elasticsearch — one
+document per transaction enriched with all the data reporting needs:
 
 **Elasticsearch index mapping (`transaction_projections`):**
 
@@ -344,30 +352,57 @@ Instead of running joins against PostgreSQL, the new service materializes denorm
 {
   "mappings": {
     "properties": {
-      "transactionId":  { "type": "keyword" },
-      "clientId":       { "type": "keyword" },
-      "status":         { "type": "keyword" },
-      "amount":         { "type": "double" },
-      "currency":       { "type": "keyword" },
-      "paymentStatus":  { "type": "keyword" },
-      "transactedAt":   { "type": "date" },
+      "transactionId": {
+        "type": "keyword"
+      },
+      "clientId": {
+        "type": "keyword"
+      },
+      "status": {
+        "type": "keyword"
+      },
+      "amount": {
+        "type": "double"
+      },
+      "currency": {
+        "type": "keyword"
+      },
+      "paymentStatus": {
+        "type": "keyword"
+      },
+      "transactedAt": {
+        "type": "date"
+      },
       "productDetails": {
         "type": "nested",
         "properties": {
-          "productId":    { "type": "keyword" },
-          "productName":  { "type": "keyword" },
-          "amount":       { "type": "double" },
-          "interestRate": { "type": "double" }
+          "productId": {
+            "type": "keyword"
+          },
+          "productName": {
+            "type": "keyword"
+          },
+          "amount": {
+            "type": "double"
+          },
+          "interestRate": {
+            "type": "double"
+          }
         }
       },
-      "clientName":     { "type": "keyword" },
-      "region":         { "type": "keyword" }
+      "clientName": {
+        "type": "keyword"
+      },
+      "region": {
+        "type": "keyword"
+      }
     }
   }
 }
 ```
 
-Aggregations like "total interest income by product type for client X in January" that previously required a 120s JOIN now execute as a single Elasticsearch aggregation query in under 200ms.
+Aggregations like "total interest income by product type for client X in January" that previously required a 120s JOIN
+now execute as a single Elasticsearch aggregation query in under 200ms.
 
 ### Step 6 — CQRS Implementation
 
@@ -380,7 +415,6 @@ graph TB
         PaySvc["LoanService<br/>disburseLoan()"]
         InvSvc["ProductService<br/>updateProductRate()"]
         MonolithDB[(PostgreSQL 13<br/>Transactional Data)]
-
         OrderSvc --> MonolithDB
         PaySvc --> MonolithDB
         InvSvc --> MonolithDB
@@ -394,26 +428,25 @@ graph TB
         ES[(Elasticsearch<br/>Read Model)]
         Redis[(Redis<br/>Aggregation Cache)]
         API["REST API<br/>/reports/*"]
-
         Consumer --> Projector
         Projector --> ES
         ES --> Redis
         Redis --> API
     end
 
-    OrderSvc -->|"TransactionCreated event"| Kafka
-    PaySvc -->|"LoanDisbursed event"| Kafka
-    InvSvc -->|"ProductRateUpdated event"| Kafka
+    OrderSvc -->|" TransactionCreated event "| Kafka
+    PaySvc -->|" LoanDisbursed event "| Kafka
+    InvSvc -->|" ProductRateUpdated event "| Kafka
     Kafka --> Consumer
-
-    style CommandSide fill:#ffd43b,color:#000
-    style QuerySide fill:#51cf66,color:#fff
-    style Kafka fill:#ff922b,color:#fff
+    style CommandSide fill: #ffd43b, color: #000
+    style QuerySide fill: #51cf66, color: #fff
+    style Kafka fill: #ff922b, color: #fff
 ```
 
 **Kafka consumer in the reporting service:**
 
 ```java
+
 @Component
 public class TransactionEventConsumer {
 
@@ -421,46 +454,48 @@ public class TransactionEventConsumer {
     private TransactionProjectionRepository projectionRepository;
 
     @KafkaListener(
-        topics = "reporting.transaction-created",
-        groupId = "reporting-service",
-        containerFactory = "reportingKafkaListenerFactory"
+            topics = "reporting.transaction-created",
+            groupId = "reporting-service",
+            containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleTransactionCreated(TransactionCreatedEvent event) {
         TransactionProjection projection = TransactionProjection.builder()
-            .transactionId(event.getTransactionId())
-            .clientId(event.getClientId())
-            .amount(event.getAmount())
-            .currency(event.getCurrency())
-            .status("COMPLETED")
-            .transactedAt(event.getOccurredAt())
-            .productDetails(mapProductDetails(event.getProductType()))
-            .build();
+                .transactionId(event.getTransactionId())
+                .clientId(event.getClientId())
+                .amount(event.getAmount())
+                .currency(event.getCurrency())
+                .status("COMPLETED")
+                .transactedAt(event.getOccurredAt())
+                .productDetails(mapProductDetails(event.getProductType()))
+                .build();
 
         projectionRepository.save(projection); // saves to Elasticsearch
     }
 
     @KafkaListener(
-        topics = "reporting.loan-disbursed",
-        groupId = "reporting-service"
+            topics = "reporting.loan-disbursed",
+            groupId = "reporting-service"
     )
     public void handleLoanDisbursed(LoanDisbursedEvent event) {
         projectionRepository.findById(event.getTransactionId())
-            .ifPresent(projection -> {
-                projection.setPaymentStatus(event.getStatus());
-                projection.setPaymentId(event.getLoanId());
-                projectionRepository.save(projection);
-            });
+                .ifPresent(projection -> {
+                    projection.setPaymentStatus(event.getStatus());
+                    projection.setPaymentId(event.getLoanId());
+                    projectionRepository.save(projection);
+                });
     }
 }
 ```
 
 ### Step 7 — Saga Pattern for Resilience
 
-Because the reporting service is eventually consistent, we needed to handle scenarios where the service was temporarily unavailable and events were buffered in Kafka. We implemented a simple choreography-based saga:
+Because the reporting service is eventually consistent, we needed to handle scenarios where the service was temporarily
+unavailable and events were buffered in Kafka. We implemented a simple choreography-based saga:
 
 - Kafka consumer group offsets are committed **only after successful Elasticsearch write**
 - If Elasticsearch is unavailable, the consumer pauses and retries with exponential backoff
-- Dead-letter topic (`reporting.dlq`) captures events that fail after 3 retries — an alert fires and the team investigates
+- Dead-letter topic (`reporting.dlq`) captures events that fail after 3 retries — an alert fires and the team
+  investigates
 - A nightly reconciliation job compares Kafka offset lag vs. expected projections and alerts on discrepancies
 
 ```mermaid
@@ -470,27 +505,27 @@ sequenceDiagram
     participant ES as Elasticsearch
     participant DLQ as Dead Letter Queue<br/>(reporting.dlq)
     participant Alert as PagerDuty
-
-    Kafka->>Consumer: TransactionCreated event
-
-    Consumer->>ES: Save projection
+    Kafka ->> Consumer: TransactionCreated event
+    Consumer ->> ES: Save projection
     alt ES available
-        ES-->>Consumer: 201 Created
-        Consumer->>Kafka: Commit offset
+        ES -->> Consumer: 201 Created
+        Consumer ->> Kafka: Commit offset
     else ES unavailable (attempt 1-3)
-        ES-->>Consumer: Connection timeout
-        Consumer->>Consumer: Exponential backoff retry
+        ES -->> Consumer: Connection timeout
+        Consumer ->> Consumer: Exponential backoff retry
     else ES unavailable (attempt 4+)
-        Consumer->>DLQ: Send to dead-letter topic
-        DLQ->>Alert: Trigger PagerDuty alert
+        Consumer ->> DLQ: Send to dead-letter topic
+        DLQ ->> Alert: Trigger PagerDuty alert
     end
 ```
 
 ### Step 8 — Historical Data Backfill
 
-Three years of transaction history lived in PostgreSQL. We wrote a one-time backfill job that ran alongside the live system:
+Three years of transaction history lived in PostgreSQL. We wrote a one-time backfill job that ran alongside the live
+system:
 
 ```java
+
 @Component
 public class HistoricalDataBackfillJob {
 
@@ -509,16 +544,16 @@ public class HistoricalDataBackfillJob {
 
         do {
             batch = monolithJdbcTemplate.query(
-                """
-                SELECT t.id, t.client_id, t.amount, t.currency,
-                       t.transacted_at, l.status as payment_status, l.id as loan_id
-                FROM transactions t
-                LEFT JOIN loan_events l ON l.transaction_id = t.id
-                ORDER BY t.transacted_at
-                LIMIT ? OFFSET ?
-                """,
-                (rs, rowNum) -> mapToProjection(rs),
-                batchSize, offset
+                    """
+                            SELECT t.id, t.client_id, t.amount, t.currency,
+                                   t.transacted_at, l.status as payment_status, l.id as loan_id
+                            FROM transactions t
+                            LEFT JOIN loan_events l ON l.transaction_id = t.id
+                            ORDER BY t.transacted_at
+                            LIMIT ? OFFSET ?
+                            """,
+                    (rs, rowNum) -> mapToProjection(rs),
+                    batchSize, offset
             );
 
             projectionRepository.saveAll(batch); // bulk upsert to Elasticsearch
@@ -530,11 +565,13 @@ public class HistoricalDataBackfillJob {
 }
 ```
 
-The backfill completed in ~6 hours running at off-peak hours, with no impact to the live system (read-only queries against a read replica).
+The backfill completed in ~6 hours running at off-peak hours, with no impact to the live system (read-only queries
+against a read replica).
 
 ### Step 9 — Feature Flag / Traffic Cutover
 
-We used a simple feature flag (backed by Redis) to gradually shift report traffic from the monolith to the new service, independently per client:
+We used a simple feature flag (backed by Redis) to gradually shift report traffic from the monolith to the new service,
+independently per client:
 
 ```mermaid
 graph LR
@@ -542,33 +579,34 @@ graph LR
     FlagService["Feature Flag Service<br/>(Redis-backed)"]
     Monolith["Monolith /reports/*<br/>(legacy)"]
     NewService["Reporting Microservice<br/>(new)"]
-
-    Nginx -->|"Check flag for clientId"| FlagService
-    FlagService -->|"Flag = OFF (90% branches)"| Monolith
-    FlagService -->|"Flag = ON (10% → 50% → 100%)"| NewService
-
-    style NewService fill:#51cf66,color:#fff
-    style Monolith fill:#adb5bd,color:#fff
+    Nginx -->|" Check flag for clientId "| FlagService
+    FlagService -->|" Flag = OFF (90% branches) "| Monolith
+    FlagService -->|" Flag = ON (10% → 50% → 100%) "| NewService
+    style NewService fill: #51cf66, color: #fff
+    style Monolith fill: #adb5bd, color: #fff
 ```
 
 **Rollout timeline:**
 
-| Week | % of Branches / Clients on New Service | Notes |
-|---|---|---|
-| Week 1 | 5% | Internal test branches only |
-| Week 2 | 20% | Low-volume branches |
-| Week 3 | 50% | Mid-tier branches |
-| Week 4 | 100% | Full cutover |
+| Week   | % of Branches / Clients on New Service | Notes                       |
+|--------|----------------------------------------|-----------------------------|
+| Week 1 | 5%                                     | Internal test branches only |
+| Week 2 | 20%                                    | Low-volume branches         |
+| Week 3 | 50%                                    | Mid-tier branches           |
+| Week 4 | 100%                                   | Full cutover                |
 
-Each phase included: SLO monitoring, latency comparison, error rate tracking. No branch-reported issues during any phase.
+Each phase included: SLO monitoring, latency comparison, error rate tracking. No branch-reported issues during any
+phase.
 
 ### Step 10 — Decommission Reporting from Monolith
 
-With 100% of traffic on the new service and metrics stable for two weeks, we removed the `reporting-module` from the monolith:
+With 100% of traffic on the new service and metrics stable for two weeks, we removed the `reporting-module` from the
+monolith:
 
 1. Deleted `reporting-module` Maven module and all its source code
 2. Removed cross-module JPA repository injections from `reporting-module`
-3. Ran `flyway` migration to drop reporting-specific tables from the shared schema (moved to Postgres metadata DB owned by new service)
+3. Ran `flyway` migration to drop reporting-specific tables from the shared schema (moved to Postgres metadata DB owned
+   by new service)
 4. Removed Nginx location block for monolith's `/reports/*` routing
 5. Final monolith WAR shrank by ~18% in size; startup time improved by ~12s
 
@@ -578,20 +616,20 @@ With 100% of traffic on the new service and metrics stable for two weeks, we rem
 
 ### Technology Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Java 21 |
-| Framework | Spring Boot 3.x |
-| Messaging | Apache Kafka (Spring Kafka) |
-| Read Store | Elasticsearch 8.x (Spring Data Elasticsearch) |
-| Cache | Redis 7 (Spring Data Redis) |
-| Metadata DB | PostgreSQL 15 (service-owned schema) |
-| Auth | OAuth2 / Keycloak (JWT bearer tokens) |
-| Resilience | Resilience4j (Circuit Breaker, Retry, Rate Limiter) |
-| Containerization | Docker + Kubernetes (Helm charts) |
-| Observability | Prometheus + Grafana + Loki |
-| CI/CD | GitHub Actions (daily deployments) |
-| API Docs | OpenAPI 3 / Springdoc Swagger UI |
+| Layer            | Technology                                          |
+|------------------|-----------------------------------------------------|
+| Language         | Java 21                                             |
+| Framework        | Spring Boot 3.x                                     |
+| Messaging        | Apache Kafka (Spring Kafka)                         |
+| Read Store       | Elasticsearch 8.x (Spring Data Elasticsearch)       |
+| Cache            | Redis 7 (Spring Data Redis)                         |
+| Metadata DB      | PostgreSQL 15 (service-owned schema)                |
+| Auth             | OAuth2 / Keycloak (JWT bearer tokens)               |
+| Resilience       | Resilience4j (Circuit Breaker, Retry, Rate Limiter) |
+| Containerization | Docker + Kubernetes (Helm charts)                   |
+| Observability    | Prometheus + Grafana + Loki                         |
+| CI/CD            | GitHub Actions (daily deployments)                  |
+| API Docs         | OpenAPI 3 / Springdoc Swagger UI                    |
 
 ### Full System Architecture
 
@@ -629,9 +667,7 @@ graph TB
     end
 
     Kafka{{"Apache Kafka<br/>reporting.transaction-created<br/>reporting.loan-disbursed<br/>reporting.product-rate-updated<br/>reporting.dlq"}}
-
     Observability["Prometheus + Grafana<br/>Loki (logs)"]
-
     Browser --> GW
     MobileApp --> GW
     InternalBI --> GW
@@ -642,19 +678,16 @@ graph TB
     CircuitBreaker --> ES
     CircuitBreaker --> Redis
     AppSvc --> PG
-
     MonolithCore --> MonolithDB
     MonolithCore --> KafkaProducers
     KafkaProducers --> Kafka
     Kafka --> KafkaConsumers
     KafkaConsumers --> Projector
     Projector --> ES
-
     ReportingService --> Observability
-
-    style ReportingService fill:#51cf66,color:#fff
-    style Kafka fill:#ff922b,color:#fff
-    style Monolith fill:#ffd43b,color:#000
+    style ReportingService fill: #51cf66, color: #fff
+    style Kafka fill: #ff922b, color: #fff
+    style Monolith fill: #ffd43b, color: #000
 ```
 
 ### Kafka Consumer Pipeline
@@ -680,25 +713,21 @@ graph LR
     Projector["Projection Merger<br/>Upsert by transactionId"]
     ES[(Elasticsearch)]
     ErrorHandler["DeadLetterPublisher<br/>(after 3 retries)"]
-
     T1 --> C1
     T2 --> C2
     T3 --> C1
     T4 --> C3
     T5 --> C2
-
     C1 --> Validator
     C2 --> Validator
     C3 --> Validator
-
     Validator -->|Valid| Projector
     Validator -->|Invalid schema| ErrorHandler
     Projector --> ES
     Projector -->|Failure after retries| ErrorHandler
     ErrorHandler --> DLQ
-
-    style ES fill:#4ecdc4,color:#fff
-    style DLQ fill:#ff6b6b,color:#fff
+    style ES fill: #4ecdc4, color: #fff
+    style DLQ fill: #ff6b6b, color: #fff
 ```
 
 ### Elasticsearch Aggregation Flow
@@ -706,21 +735,13 @@ graph LR
 ```mermaid
 graph TB
     Query["API Request:<br/>GET /reports/revenue?clientId=X&period=2022-01"]
-
     Cache{"Redis Cache<br/>Hit?"}
-
     CacheHit["Return cached result<br/>(TTL: 5 minutes)"]
-
     ESQuery["Elasticsearch Aggregation Query<br/>index: transaction_projections<br/>filter: clientId + date range<br/>agg: sum(amount), count, avg"]
-
     ESResult["Aggregation Result<br/>(~150ms)"]
-
     Transform["Transform & Enrich<br/>Currency conversion<br/>Trend calculation"]
-
     CacheStore["Store in Redis<br/>(TTL: 5 min)"]
-
     Response["JSON Response<br/>to Client"]
-
     Query --> Cache
     Cache -->|HIT| CacheHit
     Cache -->|MISS| ESQuery
@@ -729,9 +750,8 @@ graph TB
     Transform --> CacheStore
     CacheStore --> Response
     CacheHit --> Response
-
-    style Cache fill:#ff922b,color:#fff
-    style ESQuery fill:#4ecdc4,color:#fff
+    style Cache fill: #ff922b, color: #fff
+    style ESQuery fill: #4ecdc4, color: #fff
 ```
 
 ### Real-Time Report Generation Sequence
@@ -746,32 +766,28 @@ sequenceDiagram
     participant CB as Circuit Breaker<br/>(Resilience4j)
     participant ES as Elasticsearch
     participant PG as PostgreSQL<br/>(Metadata)
-
-    BankAnalyst->>GW: GET /reports/financial?month=2022-01
-    GW->>GW: Validate JWT (Keycloak)
-    GW->>API: Authenticated request + clientId claim
-
-    API->>Cache: GET cache key (clientId + period)
+    BankAnalyst ->> GW: GET /reports/financial?month=2022-01
+    GW ->> GW: Validate JWT (Keycloak)
+    GW ->> API: Authenticated request + clientId claim
+    API ->> Cache: GET cache key (clientId + period)
     alt Cache HIT
-        Cache-->>API: Cached aggregation result
-        API-->>BankAnalyst: 200 JSON (~10ms)
+        Cache -->> API: Cached aggregation result
+        API -->> BankAnalyst: 200 JSON (~10ms)
     else Cache MISS
-        API->>AppSvc: getFinancialReport(clientId, period)
-        AppSvc->>PG: Load report config & currency settings
-        PG-->>AppSvc: Config
-
-        AppSvc->>CB: Execute ES query (circuit breaker wraps)
-        CB->>ES: Aggregation query<br/>(filter + date_histogram + sum)
-        ES-->>CB: Aggregation result (~150ms)
-        CB-->>AppSvc: Result (circuit CLOSED)
-
-        AppSvc->>AppSvc: Enrich with trends & comparisons
-        AppSvc->>Cache: SET result (TTL: 5 min)
-        AppSvc-->>API: FinancialReportDTO
-        API-->>BankAnalyst: 200 JSON (~200ms total)
+        API ->> AppSvc: getFinancialReport(clientId, period)
+        AppSvc ->> PG: Load report config & currency settings
+        PG -->> AppSvc: Config
+        AppSvc ->> CB: Execute ES query (circuit breaker wraps)
+        CB ->> ES: Aggregation query<br/>(filter + date_histogram + sum)
+        ES -->> CB: Aggregation result (~150ms)
+        CB -->> AppSvc: Result (circuit CLOSED)
+        AppSvc ->> AppSvc: Enrich with trends & comparisons
+        AppSvc ->> Cache: SET result (TTL: 5 min)
+        AppSvc -->> API: FinancialReportDTO
+        API -->> BankAnalyst: 200 JSON (~200ms total)
     end
 
-    Note over BankAnalyst,ES: Total p99 latency: < 2 seconds<br/>vs. 120 seconds in monolith
+    Note over BankAnalyst, ES: Total p99 latency: < 2 seconds<br/>vs. 120 seconds in monolith
 ```
 
 ### Kubernetes Deployment Topology
@@ -808,7 +824,6 @@ graph TB
     end
 
     Internet["Ingress Controller<br/>(AWS ALB)"]
-
     Internet --> Ingress
     Ingress --> SVC
     SVC --> P1
@@ -820,10 +835,9 @@ graph TB
     P1 & P2 & P3 -.->|consumes| Kafka_STS
     P1 & P2 & P3 -.->|metrics| Prom
     Prom --> Grafana
-
-    style deploy fill:#51cf66,color:#fff
-    style infra fill:#4ecdc4,color:#fff
-    style monitoring fill:#845ef7,color:#fff
+    style deploy fill: #51cf66, color: #fff
+    style infra fill: #4ecdc4, color: #fff
+    style monitoring fill: #845ef7, color: #fff
 ```
 
 **Helm values (excerpt):**
@@ -872,30 +886,30 @@ podDisruptionBudget:
 
 ### Performance
 
-| Metric | Before (Monolith) | After (Microservice) | Improvement |
-|---|---|---|---|
-| Report generation time (p99) | 120 seconds | < 2 seconds | **98.3% faster** |
-| Primary DB CPU during reports | 95% | 55% | **42% reduction** |
-| DB table locks during reports | Frequent (3–5/day) | None | **Eliminated** |
-| Transaction processing error rate during reports | 0.8% | 0% | **Eliminated** |
+| Metric                                           | Before (Monolith)  | After (Microservice) | Improvement       |
+|--------------------------------------------------|--------------------|----------------------|-------------------|
+| Report generation time (p99)                     | 120 seconds        | < 2 seconds          | **98.3% faster**  |
+| Primary DB CPU during reports                    | 95%                | 55%                  | **42% reduction** |
+| DB table locks during reports                    | Frequent (3–5/day) | None                 | **Eliminated**    |
+| Transaction processing error rate during reports | 0.8%               | 0%                   | **Eliminated**    |
 
 ### Operations
 
-| Metric | Before | After | Improvement |
-|---|---|---|---|
-| Deployment frequency | Monthly | Daily | **30x more frequent** |
-| Deploy lead time (code → prod) | 3–4 weeks | < 1 day | **~20x faster** |
-| Service uptime (SLO) | 99.5% | 99.99% | **50x fewer outages** |
-| Mean time to recovery (MTTR) | ~4 hours | ~8 minutes | **30x faster recovery** |
+| Metric                         | Before    | After      | Improvement             |
+|--------------------------------|-----------|------------|-------------------------|
+| Deployment frequency           | Monthly   | Daily      | **30x more frequent**   |
+| Deploy lead time (code → prod) | 3–4 weeks | < 1 day    | **~20x faster**         |
+| Service uptime (SLO)           | 99.5%     | 99.99%     | **50x fewer outages**   |
+| Mean time to recovery (MTTR)   | ~4 hours  | ~8 minutes | **30x faster recovery** |
 
 ### Business Impact
 
-| Outcome | Details |
-|---|---|
-| Real-time banking analytics dashboard | New product feature — impossible before; launched 6 weeks after service went live |
-| Compliance SLA improvement | 12% reduction in support tickets about report timeouts |
-| Transaction fee recovery | Transaction processing degradation eliminated — estimated $50K/month in recovered transaction fees |
-| Engineering velocity | Reporting team can now ship independently without coordinating monthly monolith releases |
+| Outcome                               | Details                                                                                            |
+|---------------------------------------|----------------------------------------------------------------------------------------------------|
+| Real-time banking analytics dashboard | New product feature — impossible before; launched 6 weeks after service went live                  |
+| Compliance SLA improvement            | 12% reduction in support tickets about report timeouts                                             |
+| Transaction fee recovery              | Transaction processing degradation eliminated — estimated $50K/month in recovered transaction fees |
+| Engineering velocity                  | Reporting team can now ship independently without coordinating monthly monolith releases           |
 
 ### Grafana Dashboard (Key Metrics Tracked)
 
@@ -912,20 +926,29 @@ podDisruptionBudget:
 
 ### Why Elasticsearch over PostgreSQL read replica?
 
-A read replica would have reduced load on the primary but kept the same data model — still requiring expensive JOINs. Elasticsearch's denormalized document model and native aggregation engine were the right fit for analytics workloads. A single document per transaction (with nested product details) eliminates joins entirely.
+A read replica would have reduced load on the primary but kept the same data model — still requiring expensive JOINs.
+Elasticsearch's denormalized document model and native aggregation engine were the right fit for analytics workloads. A
+single document per transaction (with nested product details) eliminates joins entirely.
 
 ### Why Kafka over direct API calls from monolith?
 
-Direct API calls would couple the monolith's transaction path to the reporting service's availability. Kafka decouples them temporally: the monolith's `processTransaction()` call completes immediately regardless of whether the reporting service is up. The event is buffered and processed when the consumer is ready.
+Direct API calls would couple the monolith's transaction path to the reporting service's availability. Kafka decouples
+them temporally: the monolith's `processTransaction()` call completes immediately regardless of whether the reporting
+service is up. The event is buffered and processed when the consumer is ready.
 
 ### Why CQRS over a shared database?
 
-A shared database creates invisible coupling — any schema change to `transactions` could break the reporting module without a compilation error. CQRS gives the reporting service full autonomy over its data model (Elasticsearch documents), allowing it to evolve its read projections without negotiating schema changes with the transaction team.
+A shared database creates invisible coupling — any schema change to `transactions` could break the reporting module
+without a compilation error. CQRS gives the reporting service full autonomy over its data model (Elasticsearch
+documents), allowing it to evolve its read projections without negotiating schema changes with the transaction team.
 
 ### Why the Strangler Fig pattern over a Big Bang rewrite?
 
-The Strangler Fig allowed us to migrate incrementally with zero downtime and instant rollback capability (just flip the Nginx upstream back). A big bang cutover would have required a risky all-or-nothing deployment and made debugging much harder.
+The Strangler Fig allowed us to migrate incrementally with zero downtime and instant rollback capability (just flip the
+Nginx upstream back). A big bang cutover would have required a risky all-or-nothing deployment and made debugging much
+harder.
 
 ---
 
-*This document reflects a real-world architectural journey and is intended as interview preparation material demonstrating senior-level system design, microservices patterns, and production engineering judgment.*
+*This document reflects a real-world architectural journey and is intended as interview preparation material
+demonstrating senior-level system design, microservices patterns, and production engineering judgment.*

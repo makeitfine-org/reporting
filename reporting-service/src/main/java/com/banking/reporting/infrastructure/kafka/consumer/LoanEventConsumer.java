@@ -19,9 +19,9 @@ public class LoanEventConsumer {
     private final TransactionProjectionRepository projectionRepository;
 
     @KafkaListener(
-        topics = "reporting.loan-disbursed",
-        groupId = "reporting-service",
-        containerFactory = "reportingKafkaListenerFactory"
+            topics = "reporting.loan-disbursed",
+            groupId = "reporting-service",
+            containerFactory = "reportingKafkaListenerFactory"
     )
     public void handleLoanDisbursed(
             @Payload LoanDisbursedEvent event,

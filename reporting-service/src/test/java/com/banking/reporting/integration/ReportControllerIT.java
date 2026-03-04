@@ -41,9 +41,9 @@ class ReportControllerIT extends AbstractIT {
     @Test
     void getFinancialReport_validRequest_returns200() throws Exception {
         mockMvc.perform(get("/api/reports/financial")
-                .param("clientId", "cli-001")
-                .param("period", "2022-01")
-                .accept(MediaType.APPLICATION_JSON))
+                        .param("clientId", "cli-001")
+                        .param("period", "2022-01")
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.clientId").value("cli-001"));
@@ -52,25 +52,25 @@ class ReportControllerIT extends AbstractIT {
     @Test
     void getFinancialReport_unknownClient_returns404() throws Exception {
         mockMvc.perform(get("/api/reports/financial")
-                .param("clientId", "unknown-client")
-                .param("period", "2022-01")
-                .accept(MediaType.APPLICATION_JSON))
+                        .param("clientId", "unknown-client")
+                        .param("period", "2022-01")
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void getFinancialReport_invalidPeriod_returns400() throws Exception {
         mockMvc.perform(get("/api/reports/financial")
-                .param("clientId", "cli-001")
-                .param("period", "invalid-period"))
+                        .param("clientId", "cli-001")
+                        .param("period", "invalid-period"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void getDashboard_validRequest_returns200() throws Exception {
         mockMvc.perform(get("/api/reports/dashboard")
-                .param("clientId", "cli-001")
-                .accept(MediaType.APPLICATION_JSON))
+                        .param("clientId", "cli-001")
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.clientId").value("cli-001"));
     }

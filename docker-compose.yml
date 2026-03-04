@@ -9,7 +9,7 @@ services:
     ports:
       - "2181:2181"
     healthcheck:
-      test: ["CMD", "cub", "zk-ready", "localhost:2181", "30"]
+      test: [ "CMD", "cub", "zk-ready", "localhost:2181", "30" ]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -37,7 +37,7 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 168  # 7 days
       KAFKA_COMPRESSION_TYPE: lz4
     healthcheck:
-      test: ["CMD", "cub", "kafka-ready", "1", "30", "-b", "localhost:9092"]
+      test: [ "CMD", "cub", "kafka-ready", "1", "30", "-b", "localhost:9092" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -56,7 +56,7 @@ services:
     volumes:
       - es_data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'" ]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -70,7 +70,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -86,11 +86,19 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./infra/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reporting -d reporting"]
+      test: [ "CMD-SHELL", "pg_isready -U reporting -d reporting" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
 
   # ─── Observability ────────────────────────────────────────────────
   prometheus:
@@ -107,7 +115,7 @@ services:
       - "--web.console.templates=/etc/prometheus/consoles"
       - "--web.enable-lifecycle"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:9090/-/healthy" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -128,6 +136,121 @@ services:
         condition: service_healthy
 
   # ─── Application ─────────────────────────────────────────────────
+  customer-service:
+    build:
+      context: ./customer-service
+      dockerfile: Dockerfile
+    container_name: customer-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/customers
+      POSTGRES_USER: customers
+      POSTGRES_PASSWORD: customers
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8081/actuator/health/liveness" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: product-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/products
+      POSTGRES_USER: products
+      POSTGRES_PASSWORD: products
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8083/actuator/health/liveness" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  transaction-service:
+    build:
+      context: ./transaction-service
+      dockerfile: Dockerfile
+    container_name: transaction-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/transactions
+      POSTGRES_USER: transactions
+      POSTGRES_PASSWORD: transactions
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CUSTOMER_SERVICE_URL: http://customer-service:8081
+      PRODUCT_SERVICE_URL: http://product-service:8083
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8082/actuator/health/liveness" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/notifications
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: notifications
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CUSTOMER_SERVICE_URL: http://customer-service:8081
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8084/actuator/health/liveness" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   reporting-service:
     build:
       context: ./reporting-service
@@ -154,7 +277,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health/liveness"]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8080/actuator/health/liveness" ]
       interval: 30s
       timeout: 10s
       retries: 5

@@ -12,7 +12,7 @@ import java.util.List;
 @Repository
 public interface TransactionProjectionRepository
         extends ElasticsearchRepository<TransactionProjection, String>,
-                TransactionProjectionRepositoryCustom {
+        TransactionProjectionRepositoryCustom {
 
     Page<TransactionProjection> findByClientId(String clientId, Pageable pageable);
 

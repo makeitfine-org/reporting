@@ -3,10 +3,12 @@
 ## Context
 
 Based on two documentation files:
+
 - `architecture and decoupling.md` — STAR story of extracting reporting from a Java monolith
 - `communication and ci-cd.md` — Inter-service comms, Kafka topology, CI/CD pipeline
 
-The goal is to implement the complete **Reporting Microservice** described in those docs as a real, buildable Maven project with all required code, tests, infrastructure, and deployment artifacts.
+The goal is to implement the complete **Reporting Microservice** described in those docs as a real, buildable Maven
+project with all required code, tests, infrastructure, and deployment artifacts.
 
 ---
 
@@ -85,10 +87,15 @@ AWS deployment: `reporting-service/aws/` — CloudFormation templates for EKS, R
 ## Implementation Steps
 
 ### Step 1 — Root `pom.xml`
-Multi-module Maven parent. Manages versions via `<dependencyManagement>`. Modules: `[reporting-service]`. Includes plugin management for: spring-boot-maven-plugin, maven-checkstyle-plugin, maven-pmd-plugin, jacoco-maven-plugin, dependency-check-maven.
+
+Multi-module Maven parent. Manages versions via `<dependencyManagement>`. Modules: `[reporting-service]`. Includes
+plugin management for: spring-boot-maven-plugin, maven-checkstyle-plugin, maven-pmd-plugin, jacoco-maven-plugin,
+dependency-check-maven.
 
 ### Step 2 — `reporting-service/pom.xml`
+
 Spring Boot 3.x parent. Dependencies:
+
 - `spring-boot-starter-web`
 - `spring-boot-starter-data-elasticsearch`
 - `spring-boot-starter-data-redis`
@@ -106,6 +113,7 @@ Spring Boot 3.x parent. Dependencies:
 - Test: `spring-boot-starter-test`, `spring-kafka-test`, `testcontainers` (kafka, postgresql, elasticsearch, redis)
 
 ### Step 3 — Domain Model (null-safe with Lombok)
+
 - `TransactionProjection` — Elasticsearch document (ES `@Document`)
 - `ProductDetails` — Nested ES object
 - `ReportConfig` — JPA entity (PostgreSQL)
@@ -113,8 +121,11 @@ Spring Boot 3.x parent. Dependencies:
 - `AlertRule` — JPA entity
 
 ### Step 4 — Kafka Events (5 event POJOs)
+
 Based on §2.5 of comms doc:
-- `TransactionCreatedEvent` (fields: eventType, schemaVersion, transactionId, clientId, correlationId, amount, currency, productId, productType, occurredAt)
+
+- `TransactionCreatedEvent` (fields: eventType, schemaVersion, transactionId, clientId, correlationId, amount, currency,
+  productId, productType, occurredAt)
 - `LoanDisbursedEvent`
 - `TransactionReversedEvent`
 - `ProductRateUpdatedEvent`
@@ -122,66 +133,85 @@ Based on §2.5 of comms doc:
 - `DeadLetterEnvelope` (DLQ wrapper)
 
 ### Step 5 — Kafka Consumers (with DLQ + exponential backoff)
-- `TransactionEventConsumer` — handles `reporting.transaction-created` + `reporting.transaction-reversed` + `reporting.chargeback-processed`
+
+- `TransactionEventConsumer` — handles `reporting.transaction-created` + `reporting.transaction-reversed` +
+  `reporting.chargeback-processed`
 - `LoanEventConsumer` — handles `reporting.loan-disbursed`
 - `ProductEventConsumer` — handles `reporting.product-rate-updated`
 - `KafkaConsumerConfig` — `DefaultErrorHandler` + `DeadLetterPublishingRecoverer` (1s→2s→4s backoff, 3 attempts → DLQ)
 
 ### Step 6 — Elasticsearch Layer
+
 - `TransactionProjectionRepository` extends `ElasticsearchRepository`
 - `TransactionProjectionRepositoryCustom` for aggregation queries
 - ES index mapping matches the JSON mapping in §5 of architecture doc
 - `ElasticsearchConfig` with `@CircuitBreaker` + `@Bulkhead` (20 concurrent, 50 queue depth)
 
 ### Step 7 — Redis Cache Layer
+
 - `ReportCacheService` — TTL 5 min, keyed by `clientId + period`
 - `RedisConfig` with `ObjectMapper` (null-safe, JavaTime module)
 
 ### Step 8 — PostgreSQL Layer (Flyway migrations)
+
 - `V1__create_report_config.sql` — report_config, scheduled_reports, alert_rules tables
 - JPA repositories for each entity
 
 ### Step 9 — Application Services
+
 - `ReportQueryService`:
-  1. Check Redis cache → hit: return cached
-  2. Load report config from PostgreSQL
-  3. Execute ES aggregation (wrapped in Circuit Breaker + Bulkhead)
-  4. Enrich (trends, comparisons)
-  5. Store in Redis (5 min TTL)
-  6. Return DTO
+    1. Check Redis cache → hit: return cached
+    2. Load report config from PostgreSQL
+    3. Execute ES aggregation (wrapped in Circuit Breaker + Bulkhead)
+    4. Enrich (trends, comparisons)
+    5. Store in Redis (5 min TTL)
+    6. Return DTO
 - `DashboardService` — real-time dashboard widgets via ES
 
 ### Step 10 — REST API Layer
-- `ReportController` — `GET /api/reports/financial`, `GET /api/reports/revenue`, `GET /api/reports/transactions`, `POST /api/reports/config`
+
+- `ReportController` — `GET /api/reports/financial`, `GET /api/reports/revenue`, `GET /api/reports/transactions`,
+  `POST /api/reports/config`
 - `DashboardController` — `GET /api/reports/dashboard`
 - OpenAPI annotations via springdoc
 - `CorrelationIdFilter` — extracts/generates `X-Correlation-Id`, puts in MDC, sets response header
 
 ### Step 11 — Security Config
+
 - `SecurityConfig` — OAuth2 resource server (JWT), Keycloak JWKS URI from env var
 - Role-based access: `ROLE_ANALYST`, `ROLE_BI_SERVICE`
 - Internal endpoints (actuator) secured separately
 
 ### Step 12 — Error Handling (RFC 7807)
+
 - `GlobalExceptionHandler` — `@RestControllerAdvice`
-- Handles: `ServiceUnavailableException`, `ResourceNotFoundException`, `ValidationException`, `ElasticsearchException`, generic `Exception`
+- Handles: `ServiceUnavailableException`, `ResourceNotFoundException`, `ValidationException`, `ElasticsearchException`,
+  generic `Exception`
 - Returns `ProblemDetail` with correlationId, timestamp, instance
 
 ### Step 13 — Resilience4j Config
+
 As per §2.8 of comms doc:
+
 - Circuit Breaker: elasticsearch (50% threshold, 10-call window, 30s wait)
 - Retry: elasticsearch (3 attempts, 2s base, 2× multiplier)
 - Bulkhead: elasticsearch (20 concurrent, 50 queue)
 - TimeLimiter: ES queries 3s
 
 ### Step 14 — application.yaml
-Full config with env-variable overrides for: Keycloak JWKS URI, Kafka bootstrap, ES URIs, Redis host, PostgreSQL URL. Include Resilience4j, Micrometer/Prometheus, Flyway, logging (Loki pattern with `%X{correlationId}`).
+
+Full config with env-variable overrides for: Keycloak JWKS URI, Kafka bootstrap, ES URIs, Redis host, PostgreSQL URL.
+Include Resilience4j, Micrometer/Prometheus, Flyway, logging (Loki pattern with `%X{correlationId}`).
 
 ### Step 15 — Dockerfile
-Multi-stage (builder → extractor → runtime) as specified in §3.5 of comms doc. Eclipse Temurin 21 JRE, non-root `spring` user, layered JAR.
+
+Multi-stage (builder → extractor → runtime) as specified in §3.5 of comms doc. Eclipse Temurin 21 JRE, non-root `spring`
+user, layered JAR.
 
 ### Step 16 — docker-compose.yml
+
 Services:
+
 - `reporting-service` (builds from ./reporting-service/Dockerfile)
 - `kafka` (confluentinc/cp-kafka:7.5.0, 1 broker for local)
 - `zookeeper` (confluentinc/cp-zookeeper:7.5.0)
@@ -196,6 +226,7 @@ Services:
 ### Step 17 — Tests
 
 **Unit Tests** (no Spring context, Mockito):
+
 - `ReportQueryServiceTest` — cache hit, cache miss, ES failure fallback
 - `DashboardServiceTest`
 - `TransactionEventConsumerTest`
@@ -205,6 +236,7 @@ Services:
 - `GlobalExceptionHandlerTest`
 
 **Integration Tests** (Testcontainers: Kafka + PostgreSQL + Elasticsearch + Redis):
+
 - `ReportControllerIntegrationTest` — full HTTP request → Redis/ES → response, JWT auth
 - `KafkaConsumerIntegrationTest` — publish event → verify ES projection created
 - `DlqIntegrationTest` — ES failure → verify DLQ message after 3 retries
@@ -212,12 +244,16 @@ Services:
 - `SecurityIntegrationTest` — missing JWT → 401, wrong role → 403
 
 **Performance Tests** (JMH):
+
 - `ElasticsearchAggregationBenchmark` — baseline aggregation query latency
 - `RedisCacheBenchmark` — cache hit throughput
 
 ### Step 18 — Helm Chart
+
 Templates with Go template syntax:
-- `deployment.yaml` — image from values, envFrom ConfigMap + Secret, liveness/readiness probes (actuator), resource limits
+
+- `deployment.yaml` — image from values, envFrom ConfigMap + Secret, liveness/readiness probes (actuator), resource
+  limits
 - `service.yaml` — ClusterIP port 8080
 - `configmap.yaml` — KAFKA_BOOTSTRAP_SERVERS, ES_URIS, KEYCLOAK_JWKS_URI, REDIS_HOST, POSTGRES env vars
 - `secret.yaml` — DB_PASSWORD, KAFKA_PASSWORD (base64, from values)
@@ -229,7 +265,9 @@ Templates with Go template syntax:
 - `values-prod.yaml` — replicas: 3, HPA enabled, production topics
 
 ### Step 19 — AWS Deployment
+
 CloudFormation templates in `reporting-service/aws/`:
+
 - `eks-cluster.yaml` — EKS cluster + managed node group
 - `rds-postgresql.yaml` — RDS PostgreSQL 15 Multi-AZ
 - `msk-kafka.yaml` — Amazon MSK 3-broker cluster
@@ -240,7 +278,9 @@ CloudFormation templates in `reporting-service/aws/`:
 - `iam.yaml` — IAM roles for EKS service account (IRSA)
 
 ### Step 20 — GitHub Actions CI/CD
+
 `.github/workflows/ci.yaml` — 7-stage pipeline:
+
 1. Code Quality (Checkstyle, PMD, OWASP)
 2. Unit & Integration Tests (JUnit 5, Testcontainers, JaCoCo 80%)
 3. Build (mvn package + Docker multi-stage)
@@ -250,7 +290,10 @@ CloudFormation templates in `reporting-service/aws/`:
 7. Smoke Tests & Canary (k6, Prometheus metrics gate, auto-rollback)
 
 ### Step 21 — README.md
-Sections: Project Overview, Architecture, Prerequisites, Local Development (docker-compose), Running Tests, Building Docker Image, Kubernetes Deployment, AWS Deployment, API Reference, Configuration Reference, Observability, Troubleshooting.
+
+Sections: Project Overview, Architecture, Prerequisites, Local Development (docker-compose), Running Tests, Building
+Docker Image, Kubernetes Deployment, AWS Deployment, API Reference, Configuration Reference, Observability,
+Troubleshooting.
 
 ---
 
@@ -268,7 +311,8 @@ Sections: Project Overview, Architecture, Prerequisites, Local Development (dock
 
 1. `mvn clean verify` from root — all tests pass, JaCoCo ≥ 80%
 2. `docker-compose up --build` — all services healthy
-3. `curl -H "Authorization: Bearer <token>" http://localhost:8080/api/reports/financial?clientId=cli-001&period=2022-01` returns JSON
+3. `curl -H "Authorization: Bearer <token>" http://localhost:8080/api/reports/financial?clientId=cli-001&period=2022-01`
+   returns JSON
 4. Publish test Kafka event → verify ES projection via `GET /api/reports/transactions?clientId=cli-001`
 5. Kill Elasticsearch → verify circuit breaker opens and DLQ receives events
 6. `helm lint reporting-service/helm/reporting-service` — no errors

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: customer-service
+description: Banking Customer Microservice Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - banking
+  - customer
+  - microservice
+maintainers:
+  - name: Banking Platform Team
+    email: platform@banking.com

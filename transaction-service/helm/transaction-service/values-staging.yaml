@@ -1,0 +1,22 @@
+replicaCount: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+config:
+  kafkaBootstrapServers: "kafka.staging.infra.svc.cluster.local:9092"
+  logLevel: "INFO"
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+ingress:
+  hosts:
+    - host: transactions-staging.banking.internal
+      paths:
+        - path: /api/transactions
+          pathType: Prefix

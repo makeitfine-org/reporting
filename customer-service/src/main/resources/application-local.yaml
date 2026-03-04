@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/customers
+    username: customers
+    password: customers
+  kafka:
+    bootstrap-servers: localhost:9092
+
+logging:
+  level:
+    com.banking.customer: DEBUG
