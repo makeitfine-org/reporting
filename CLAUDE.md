@@ -4,29 +4,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Purpose
 
-This is a documentation repository for interview preparation. It contains a single Markdown document describing a real-world microservices architecture migration story using the STAR method (Situation → Task → Action → Result).
+Interview prep docs + Spring Boot 3.5 / Java 21 microservice (CQRS read model, extracted from Java 11 monolith via Strangler Fig).
 
-## Primary Document
+## Key Documents
 
-**`architecture and decoupling.md`** — A detailed technical narrative of extracting a Reporting microservice from a Java monolith. Covers:
+- **`architecture and decoupling.md`** — STAR narrative of monolith → microservice extraction. 11 Mermaid diagrams.
+- **`communication and ci-cd.md`** — Kafka topology, resilience config, CI/CD pipeline.
+- **`aux/`** — Checkstyle rules and supplementary docs.
 
-- Java 11 / Spring MVC monolith with shared PostgreSQL schema
-- 10-step decoupling process (Strangler Fig → Kafka events → CQRS → Elasticsearch read model)
-- Resulting Spring Boot 3.x microservice (Kafka, Elasticsearch, Redis, Kubernetes)
-- 11 Mermaid diagrams throughout (C4 context, sequence, architecture, Kafka pipeline, K8s topology)
-- Outcome metrics: 120s → <2s report time, 30x deployment frequency
+## Microservice Architecture
 
-## Mermaid Diagrams
+```
+Monolith (Kafka Producers)
+    ↓ Events (reporting.transaction-created, etc.)
+Apache Kafka → TransactionEventConsumer / LoanEventConsumer / ProductEventConsumer
+    ↓
+Elasticsearch 8 (denormalized TransactionProjection documents)
+    ↓ ~150ms aggregation queries
+Redis 7 (5-min TTL cache)
+    ↓
+REST API (Spring MVC + OAuth2/Keycloak)
+```
 
-All diagrams use standard Mermaid syntax. To preview:
-- **VS Code**: install the "Mermaid Preview" or "Markdown Preview Mermaid Support" extension
-- **GitHub/GitLab**: renders automatically in markdown preview
-- One diagram uses `C4Context` — requires the C4 Mermaid plugin or a compatible renderer
+**Package root:** `com.banking.reporting`
 
+**Layers:** `api/` (controllers, DTOs, GlobalExceptionHandler RFC 7807) → `application/` (ReportQueryService, DashboardService) → `domain/` (models, exceptions) → `infrastructure/` (kafka/, elasticsearch/, postgres/, redis/)
+
+## Commands
+
+```bash
+mvn clean verify                                              # build + all tests + coverage
+cd reporting-service && mvn test -Dtest="com.banking.reporting.unit.*"        # unit only
+cd reporting-service && mvn verify -Dtest="com.banking.reporting.integration.*"  # integration (Docker required)
+cd reporting-service && mvn spring-boot:run -Dspring-boot.run.profiles=local  # run (start deps first)
+docker-compose up -d                                          # full local stack
+```
 
 ## Claude Code Workflow
 
-- Always use the **Context7 MCP** proactively when you need library/API documentation, code generation, or setup steps — don't wait to be explicitly asked
-- When generating commit messages, do NOT add `Co-Authored-By: Claude` trailers
-- When asked to `commit`, generate a semantic commit message (max 80 characters), stage relevant changes, and create the commit — no `Co-Authored-By` trailer
-- When opening a URL in the browser that returns raw JSON, always apply pretty-print with syntax highlighting using `page.evaluate()` to inject a dark-themed HTML page with colored keys, strings, numbers, and nulls — do not wait to be asked
+- Use **Context7 MCP** proactively for library/API docs — don't wait to be asked
+- Commits: semantic message (max 80 chars), no `Co-Authored-By` trailer
+- JSON URLs opened in browser: pretty-print with dark-themed syntax highlighting via `page.evaluate()`
