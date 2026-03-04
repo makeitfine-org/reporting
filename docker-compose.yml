@@ -92,23 +92,6 @@ services:
       timeout: 5s
       retries: 5
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:22.0
-    container_name: keycloak
-    command: start-dev
-    environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_DB: dev-mem
-    ports:
-      - "8180:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/realms/master || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-
   # ─── Observability ────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
@@ -161,7 +144,6 @@ services:
       REDIS_PORT: 6379
       ES_URIS: http://elasticsearch:9200
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/banking/protocol/openid-connect/certs
     depends_on:
       postgres:
         condition: service_healthy

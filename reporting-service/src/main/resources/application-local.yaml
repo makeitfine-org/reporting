@@ -15,14 +15,7 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/banking/protocol/openid-connect/certs}
-
 logging:
   level:
     com.banking.reporting: DEBUG
     org.springframework.kafka: DEBUG
-    org.springframework.security: DEBUG

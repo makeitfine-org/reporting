@@ -63,13 +63,6 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-  # OAuth2 Resource Server
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/banking/protocol/openid-connect/certs}
-
 # Actuator
 management:
   endpoints:
@@ -145,5 +138,4 @@ logging:
     root: INFO
     com.banking.reporting: DEBUG
     org.springframework.kafka: INFO
-    org.springframework.security: INFO
     org.elasticsearch: WARN

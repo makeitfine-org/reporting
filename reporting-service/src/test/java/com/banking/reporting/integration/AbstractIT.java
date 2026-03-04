@@ -59,9 +59,5 @@ public abstract class AbstractIT {
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
 
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
-
-        // Disable JWT validation in tests — @WithMockUser is used instead
-        registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
-                () -> "http://localhost:9999/realms/test/protocol/openid-connect/certs");
     }
 }

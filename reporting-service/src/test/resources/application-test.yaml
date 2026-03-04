@@ -25,13 +25,6 @@ spring:
   kafka:
     bootstrap-servers: ${TEST_KAFKA_BOOTSTRAP:localhost:9092}
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          # Use a test JWKS URI (Testcontainers Keycloak or mock)
-          jwk-set-uri: ${TEST_JWKS_URI:http://localhost:9999/realms/test/protocol/openid-connect/certs}
-
 resilience4j:
   circuitbreaker:
     instances:

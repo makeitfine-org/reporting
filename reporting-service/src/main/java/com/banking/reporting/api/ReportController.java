@@ -9,7 +9,6 @@ import com.banking.reporting.infrastructure.postgres.entity.ReportConfig;
 import com.banking.reporting.infrastructure.postgres.repository.ReportConfigRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -17,7 +16,6 @@ import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,7 +27,6 @@ import java.util.List;
 @RequestMapping("/api/reports")
 @RequiredArgsConstructor
 @Tag(name = "Reports", description = "Financial reporting endpoints")
-@SecurityRequirement(name = "bearerAuth")
 public class ReportController {
 
     private final ReportQueryService reportQueryService;
@@ -37,7 +34,6 @@ public class ReportController {
 
     @GetMapping("/financial")
     @Operation(summary = "Get monthly financial report")
-    @PreAuthorize("hasAnyRole('ANALYST', 'BI_SERVICE', 'ADMIN')")
     public ResponseEntity<FinancialReportDto> getFinancialReport(
             @Parameter(description = "Client ID", required = true)
             @RequestParam @NotBlank String clientId,
@@ -50,7 +46,6 @@ public class ReportController {
 
     @GetMapping("/revenue")
     @Operation(summary = "Get monthly revenue report")
-    @PreAuthorize("hasAnyRole('ANALYST', 'BI_SERVICE', 'ADMIN')")
     public ResponseEntity<RevenueReportDto> getRevenueReport(
             @RequestParam @NotBlank String clientId,
             @RequestParam @Pattern(regexp = "\\d{4}-\\d{2}") String period) {
@@ -61,7 +56,6 @@ public class ReportController {
 
     @GetMapping("/transactions")
     @Operation(summary = "Get transaction list for a period")
-    @PreAuthorize("hasAnyRole('ANALYST', 'BI_SERVICE', 'ADMIN')")
     public ResponseEntity<List<TransactionSummaryDto>> getTransactions(
             @RequestParam @NotBlank String clientId,
             @RequestParam @Pattern(regexp = "\\d{4}-\\d{2}") String period) {
@@ -72,7 +66,6 @@ public class ReportController {
 
     @PostMapping("/config")
     @Operation(summary = "Create or update report configuration for a client")
-    @PreAuthorize("hasAnyRole('ANALYST', 'ADMIN')")
     public ResponseEntity<ReportConfig> createReportConfig(
             @Valid @RequestBody ReportConfigRequest request) {
 
