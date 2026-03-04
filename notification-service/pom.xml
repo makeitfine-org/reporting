@@ -138,6 +138,18 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>com/banking/notification/NotificationServiceApplication.class</exclude>
+                        <exclude>com/banking/notification/infrastructure/config/**</exclude>
+                        <exclude>com/banking/notification/infrastructure/feign/CustomerServiceClient.class</exclude>
+                        <exclude>com/banking/notification/infrastructure/postgres/repository/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

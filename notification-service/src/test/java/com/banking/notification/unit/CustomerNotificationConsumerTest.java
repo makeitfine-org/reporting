@@ -1,8 +1,8 @@
 package com.banking.notification.unit;
 
 import com.banking.notification.application.NotificationService;
-import com.banking.notification.infrastructure.kafka.consumer.TransactionNotificationConsumer;
-import com.banking.notification.infrastructure.kafka.event.TransactionCreatedEvent;
+import com.banking.notification.infrastructure.kafka.consumer.CustomerNotificationConsumer;
+import com.banking.notification.infrastructure.kafka.event.CustomerUpdatedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,7 +11,6 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,47 +20,51 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-class TransactionNotificationConsumerTest {
+class CustomerNotificationConsumerTest {
 
     @Mock
     private NotificationService notificationService;
 
     @Spy
-    private ObjectMapper objectMapper = new ObjectMapper()
-            .findAndRegisterModules();
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
-    private TransactionNotificationConsumer consumer;
+    private CustomerNotificationConsumer consumer;
 
     @Test
     void consume_validEvent_delegatesToNotificationService() {
-        TransactionCreatedEvent event = new TransactionCreatedEvent();
-        event.setTransactionId("tx-001");
+        CustomerUpdatedEvent event = new CustomerUpdatedEvent();
         event.setClientId("cli-001");
-        event.setAmount(new BigDecimal("5000"));
-        event.setCurrency("EUR");
-        event.setTransactedAt(Instant.now());
+        event.setEventType("KYC_APPROVED");
+        event.setOccurredAt(Instant.now());
 
         consumer.consume(event);
 
-        verify(notificationService).processTransactionNotification(
-                eq("cli-001"), eq("tx-001"), eq("5000"), eq("EUR"));
+        verify(notificationService).processCustomerNotification(eq("cli-001"), eq("KYC_APPROVED"));
     }
 
     @Test
     void consume_serviceThrows_rethrowsException() {
-        TransactionCreatedEvent event = new TransactionCreatedEvent();
-        event.setTransactionId("tx-002");
+        CustomerUpdatedEvent event = new CustomerUpdatedEvent();
         event.setClientId("cli-002");
-        event.setAmount(new BigDecimal("1000"));
-        event.setCurrency("USD");
-        event.setTransactedAt(Instant.now());
+        event.setEventType("RISK_UPDATED");
+        event.setOccurredAt(Instant.now());
 
         doThrow(new RuntimeException("DB unavailable"))
-                .when(notificationService).processTransactionNotification(any(), any(), any(), any());
+                .when(notificationService).processCustomerNotification(any(), any());
 
         assertThatThrownBy(() -> consumer.consume(event))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("DB unavailable");
+    }
+
+    @Test
+    void consume_invalidPayload_rethrowsException() {
+        doThrow(new IllegalArgumentException("Cannot deserialize"))
+                .when(objectMapper).convertValue(any(), eq(CustomerUpdatedEvent.class));
+
+        assertThatThrownBy(() -> consumer.consume(new Object()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Cannot deserialize");
     }
 }

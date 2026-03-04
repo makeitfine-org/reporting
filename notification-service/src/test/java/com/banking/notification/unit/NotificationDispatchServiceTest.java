@@ -72,4 +72,59 @@ class NotificationDispatchServiceTest {
         verify(jobRepository, times(2)).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.FAILED);
     }
+
+    @Test
+    void processTransactionNotification_noPhone_smsNotSent() {
+        ContactResponse contact = new ContactResponse();
+        contact.setClientId("cli-003");
+        contact.setEmail("carol@bank.com");
+        // phone is null
+
+        when(customerServiceClient.getContact("cli-003")).thenReturn(contact);
+        when(jobRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        notificationService.processTransactionNotification("cli-003", "tx-003", "200", "GBP");
+
+        verify(smsDispatchService, never()).sendSms(anyString(), anyString());
+
+        ArgumentCaptor<NotificationJob> captor = ArgumentCaptor.forClass(NotificationJob.class);
+        verify(jobRepository, times(2)).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    void processCustomerNotification_success_emailSent() {
+        ContactResponse contact = new ContactResponse();
+        contact.setClientId("cli-004");
+        contact.setEmail("dave@bank.com");
+
+        when(customerServiceClient.getContact("cli-004")).thenReturn(contact);
+        when(jobRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        notificationService.processCustomerNotification("cli-004", "KYC_APPROVED");
+
+        verify(emailDispatchService).sendEmail(eq("dave@bank.com"), anyString(), anyString());
+
+        ArgumentCaptor<NotificationJob> captor = ArgumentCaptor.forClass(NotificationJob.class);
+        verify(jobRepository, times(2)).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    void processCustomerNotification_emailFails_markedFailed() {
+        ContactResponse contact = new ContactResponse();
+        contact.setClientId("cli-005");
+        contact.setEmail("eve@bank.com");
+
+        when(customerServiceClient.getContact("cli-005")).thenReturn(contact);
+        when(jobRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("Mail server down")).when(emailDispatchService)
+                .sendEmail(anyString(), anyString(), anyString());
+
+        notificationService.processCustomerNotification("cli-005", "RISK_UPDATED");
+
+        ArgumentCaptor<NotificationJob> captor = ArgumentCaptor.forClass(NotificationJob.class);
+        verify(jobRepository, times(2)).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.FAILED);
+    }
 }
