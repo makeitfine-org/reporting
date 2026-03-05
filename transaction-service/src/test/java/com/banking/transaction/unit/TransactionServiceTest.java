@@ -23,7 +23,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doNothing;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
@@ -72,5 +74,46 @@ class TransactionServiceTest {
         when(transactionRepository.findById("bad-id")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> transactionService.findById("bad-id")).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void findById_success() {
+        Transaction tx = Transaction.builder()
+                .id("tx-1").clientId("c-1").productId("p-1")
+                .productType("MORTGAGE").amount(new BigDecimal("1000"))
+                .currency("EUR").status(TransactionStatus.COMPLETED).build();
+        when(transactionRepository.findById("tx-1")).thenReturn(Optional.of(tx));
+
+        TransactionResponse result = transactionService.findById("tx-1");
+
+        assertThat(result.getId()).isEqualTo("tx-1");
+        assertThat(result.getStatus()).isEqualTo(TransactionStatus.COMPLETED);
+    }
+
+    @Test
+    void reverse_success() {
+        Transaction tx = Transaction.builder()
+                .id("tx-2").clientId("c-2").productId("p-2")
+                .productType("LOAN").amount(new BigDecimal("2000"))
+                .currency("USD").status(TransactionStatus.COMPLETED).build();
+        Transaction reversed = Transaction.builder()
+                .id("tx-2").clientId("c-2").productId("p-2")
+                .productType("LOAN").amount(new BigDecimal("2000"))
+                .currency("USD").status(TransactionStatus.REVERSED).build();
+        when(transactionRepository.findById("tx-2")).thenReturn(Optional.of(tx));
+        when(transactionRepository.save(any())).thenReturn(reversed);
+
+        TransactionResponse result = transactionService.reverse("tx-2");
+
+        assertThat(result.getStatus()).isEqualTo(TransactionStatus.REVERSED);
+        verify(eventPublisher).publishTransactionReversed(any());
+    }
+
+    @Test
+    void reverse_notFound_throwsResourceNotFoundException() {
+        when(transactionRepository.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> transactionService.reverse("missing"))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 }
