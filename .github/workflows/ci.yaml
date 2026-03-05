@@ -152,32 +152,31 @@ jobs:
         env:
           TESTCONTAINERS_RYUK_DISABLED: "false"
 
-#      Disable coverage temporary (todo: soon)
-#      - name: Run Verification (Coverage)
-#        run: |
-#          mvn -pl ${{ matrix.service }} verify -DskipTests \
-#            -Dtest="${{ matrix.it-pattern }}" \
-#            -Dsurefire.failIfNoSpecifiedTests=false
-#        env:
-#          TESTCONTAINERS_RYUK_DISABLED: "false"
-#
-#      - name: Check JaCoCo Coverage
-#        run: mvn -pl ${{ matrix.service }} jacoco:check
-#
-#      - name: Upload Coverage Report
-#        uses: actions/upload-artifact@v4
-#        if: always()
-#        with:
-#          name: coverage-${{ matrix.service }}
-#          path: ${{ matrix.service }}/target/site/jacoco/
-#
-#      - name: Publish Test Results
-#        uses: dorny/test-reporter@v1
-#        if: always()
-#        with:
-#          name: "JUnit Tests — ${{ matrix.service }}"
-#          path: "${{ matrix.service }}/target/surefire-reports/*.xml"
-#          reporter: java-junit
+      - name: Run Verification (Coverage)
+        run: |
+          mvn -pl ${{ matrix.service }} verify -DskipTests \
+            -Dtest="${{ matrix.it-pattern }}" \
+            -Dsurefire.failIfNoSpecifiedTests=false
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+
+      - name: Check JaCoCo Coverage
+        run: mvn -pl ${{ matrix.service }} jacoco:check
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.service }}
+          path: ${{ matrix.service }}/target/site/jacoco/
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: "JUnit Tests — ${{ matrix.service }}"
+          path: "${{ matrix.service }}/target/surefire-reports/*.xml"
+          reporter: java-junit
 
 # Temp commented
 #
