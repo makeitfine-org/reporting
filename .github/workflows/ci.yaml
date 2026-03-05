@@ -100,22 +100,22 @@ jobs:
     needs: code-quality
     strategy:
       matrix:
-        include:
+        include: # unused (temporary)
           - service: reporting-service
-            unit-pattern: "com.banking.reporting.unit.**"
-            it-pattern: "com.banking.reporting.integration.**"
+#            unit-pattern: "com.banking.reporting.unit.**"
+#            it-pattern: "com.banking.reporting.integration.**"
           - service: customer-service
-            unit-pattern: "com.banking.customer.unit.**"
-            it-pattern: "com.banking.customer.integration.**"
+#            unit-pattern: "com.banking.customer.unit.**"
+#            it-pattern: "com.banking.customer.integration.**"
           - service: transaction-service
-            unit-pattern: "com.banking.transaction.unit.**"
-            it-pattern: "com.banking.transaction.integration.**"
+#            unit-pattern: "com.banking.transaction.unit.**"
+#            it-pattern: "com.banking.transaction.integration.**"
           - service: product-service
-            unit-pattern: "com.banking.product.unit.**"
-            it-pattern: "com.banking.product.integration.**"
+#            unit-pattern: "com.banking.product.unit.**"
+#            it-pattern: "com.banking.product.integration.**"
           - service: notification-service
-            unit-pattern: "com.banking.notification.unit.**"
-            it-pattern: "com.banking.notification.integration.**"
+#            unit-pattern: "com.banking.notification.unit.**"
+#            it-pattern: "com.banking.notification.integration.**"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -141,24 +141,20 @@ jobs:
       - name: Run Unit Tests
         run: |
           mvn -pl ${{ matrix.service }} test \
-            -Dtest="${{ matrix.unit-pattern }}" \
             -Dfailsafe.skipTests=true
+      #(comment filters)            -Dtest="${{ matrix.unit-pattern }}" \
 
       - name: Run Integration Tests (Testcontainers)
         run: |
           mvn -pl ${{ matrix.service }} integration-test \
-            -Dtest="${{ matrix.it-pattern }}" \
             -Dsurefire.failIfNoSpecifiedTests=false
+        #(comment filters)            -Dtest="${{ matrix.it-pattern }}" \
         env:
           TESTCONTAINERS_RYUK_DISABLED: "false"
 
       - name: Run Verification (Coverage)
         run: |
-          mvn -pl ${{ matrix.service }} verify -DskipTests \
-            -Dtest="${{ matrix.it-pattern }}" \
-            -Dsurefire.failIfNoSpecifiedTests=false
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: "false"
+          mvn -pl ${{ matrix.service }} verify -DskipTests        
 
       - name: Check JaCoCo Coverage
         run: mvn -pl ${{ matrix.service }} jacoco:check
