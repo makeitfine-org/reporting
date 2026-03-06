@@ -8,40 +8,30 @@ sharing a common library.
 
 ## Platform Architecture
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                        banking-commons                             │
-│ CorrelationIdFilter · GlobalExceptionHandler · InternalFeignConfig │
-└────────────────────────────────────────────────────────────────────┘
-            ↓ (shared library consumed by all services)
+```mermaid
+graph TD
+    commons["<b>banking-commons</b><br/>CorrelationIdFilter · GlobalExceptionHandler · InternalFeignConfig"]
 
-customer-service (8081) ←──────────────────────────────┐
-    PostgreSQL: customers                              │  Feign (internal)
-    Kafka producer: notification.customer-updated      │
-                                                       │
-product-service (8083) ←───────────────────────────────┤
-    PostgreSQL: products                               │
-    Kafka producer: reporting.product-rate-updated     │
-                                                       │
-transaction-service (8082) ─────────────────────────── ┘
-    PostgreSQL: transactions
-    Redis: KYC fallback cache
-    Kafka producers: reporting.transaction-created
-                     reporting.transaction-reversed
-                     notification.transaction-created
+    commons -->|shared library| cs
+    commons -->|shared library| ps
+    commons -->|shared library| ts
+    commons -->|shared library| ns
+    commons -->|shared library| rs
 
-notification-service (8084)
-    PostgreSQL: notifications
-    Kafka consumers: notification.transaction-created
-                     notification.customer-updated
-    Feign → customer-service (/internal/customers/{id}/contact)
+    cs["<b>customer-service</b> :8081<br/>PostgreSQL: customers<br/>Kafka producer: notification.customer-updated"]
+    ps["<b>product-service</b> :8083<br/>PostgreSQL: products<br/>Kafka producer: reporting.product-rate-updated"]
+    ts["<b>transaction-service</b> :8082<br/>PostgreSQL: transactions · Redis: KYC fallback cache<br/>Kafka producers: reporting.transaction-created/reversed<br/>notification.transaction-created"]
+    ns["<b>notification-service</b> :8084<br/>PostgreSQL: notifications<br/>Kafka consumers: notification.transaction-created<br/>notification.customer-updated"]
+    rs["<b>reporting-service</b> :8080 — CQRS read model<br/>Elasticsearch: TransactionProjection documents<br/>Redis: 5-min report cache<br/>Kafka consumers: reporting.transaction-created<br/>reporting.loan-disbursed · reporting.product-rate-updated"]
 
-reporting-service (8080)  ← CQRS read model
-    Elasticsearch: TransactionProjection documents
-    Redis: 5-min report cache
-    Kafka consumers: reporting.transaction-created
-                     reporting.loan-disbursed
-                     reporting.product-rate-updated
+    ts -->|"Feign: /internal/customers/{id}/kyc-status"| cs
+    ts -->|"Feign: /internal/products/{id}/rate"| ps
+    ns -->|"Feign: /internal/customers/{id}/contact"| cs
+
+    ts -->|"Kafka: reporting.transaction-created/reversed"| rs
+    ps -->|"Kafka: reporting.product-rate-updated"| rs
+    ts -->|"Kafka: notification.transaction-created"| ns
+    cs -->|"Kafka: notification.customer-updated"| ns
 ```
 
 **Key Patterns:** CQRS, Event Sourcing, Strangler Fig, Saga (choreography), Circuit Breaker, Bulkhead, Correlation ID
