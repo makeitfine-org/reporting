@@ -10,19 +10,19 @@ sharing a common library.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                         banking-commons                            │
-│   CorrelationIdFilter · GlobalExceptionHandler · InternalFeignConfig│
+│                        banking-commons                             │
+│ CorrelationIdFilter · GlobalExceptionHandler · InternalFeignConfig │
 └────────────────────────────────────────────────────────────────────┘
             ↓ (shared library consumed by all services)
 
 customer-service (8081) ←──────────────────────────────┐
-    PostgreSQL: customers                               │  Feign (internal)
-    Kafka producer: notification.customer-updated       │
-                                                        │
+    PostgreSQL: customers                              │  Feign (internal)
+    Kafka producer: notification.customer-updated      │
+                                                       │
 product-service (8083) ←───────────────────────────────┤
-    PostgreSQL: products                                │
-    Kafka producer: reporting.product-rate-updated      │
-                                                        │
+    PostgreSQL: products                               │
+    Kafka producer: reporting.product-rate-updated     │
+                                                       │
 transaction-service (8082) ─────────────────────────── ┘
     PostgreSQL: transactions
     Redis: KYC fallback cache
@@ -67,6 +67,7 @@ propagation
 | Docker + Compose | 24+                     |
 | Helm             | 3.13+                   |
 | kubectl          | 1.28+                   |
+| Minikube         | 1.32+ (local K8s)       |
 | AWS CLI          | 2+ (for AWS deployment) |
 
 ## Local Development
@@ -218,6 +219,58 @@ helm lint reporting-service/helm/reporting-service
 helm install reporting-service reporting-service/helm/reporting-service \
   --dry-run --debug
 ```
+
+### Deploy to Minikube (local cluster)
+
+```bash
+# Start Minikube with sufficient resources
+minikube start --cpus=4 --memory=6g --driver=docker
+
+# Enable ingress addon
+minikube addons enable ingress
+
+# Start infrastructure dependencies on the host
+docker-compose up -d zookeeper kafka postgres redis elasticsearch
+
+# Build image inside Minikube's Docker daemon
+eval $(minikube docker-env)
+mvn -pl reporting-service package -DskipTests
+docker build -t reporting-service:local reporting-service/
+
+# Create namespace and secrets
+kubectl create namespace reporting
+kubectl create secret generic reporting-secrets -n reporting \
+  --from-literal=POSTGRES_PASSWORD=reporting \
+  --from-literal=ES_PASSWORD=""
+
+# Deploy via Helm (image.pullPolicy=Never uses the local image)
+helm upgrade --install reporting-service \
+  reporting-service/helm/reporting-service \
+  --namespace reporting \
+  -f reporting-service/helm/reporting-service/values-dev.yaml \
+  --set image.repository=reporting-service \
+  --set image.tag=local \
+  --set image.pullPolicy=Never \
+  --set configmap.kafkaBootstrapServers=host.minikube.internal:29092 \
+  --set configmap.esUris=http://host.minikube.internal:9200 \
+  --set configmap.redisHost=host.minikube.internal \
+  --set configmap.postgresUrl=jdbc:postgresql://host.minikube.internal:5432/reporting
+
+# Access the service
+# Option A — port-forward (simplest)
+kubectl port-forward svc/reporting-service 8080:8080 -n reporting
+
+# Option B — via ingress (run minikube tunnel in a separate terminal first)
+minikube tunnel
+curl http://reporting.banking.internal/api/reports/financial
+
+# Verify
+kubectl get pods -n reporting
+kubectl logs -l app=reporting-service -n reporting --tail=50
+```
+
+> **Note:** `host.minikube.internal` resolves to the host machine IP from inside the Minikube VM,
+> allowing pods to reach docker-compose services running on the host.
 
 ### Deploy to Dev
 
