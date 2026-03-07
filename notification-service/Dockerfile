@@ -1,20 +1,7 @@
-FROM eclipse-temurin:21-jdk-alpine AS build
-WORKDIR /workspace
+FROM eclipse-temurin:21-jdk-alpine
 
-COPY pom.xml .
-COPY src ./src
+VOLUME /tmp
 
-RUN --mount=type=cache,target=/root/.m2 \
-    apk add --no-cache maven && \
-    mvn package -DskipTests -q
+COPY target/notification-service-1.0.0-SNAPSHOT.jar /app.jar
 
-FROM eclipse-temurin:21-jre-alpine
-WORKDIR /app
-
-RUN addgroup -S banking && adduser -S banking -G banking
-USER banking
-
-COPY --from=build /workspace/target/*.jar app.jar
-
-EXPOSE 8084
-ENTRYPOINT ["java", "-jar", "app.jar"]
+CMD ["java", "-jar", "/app.jar"]

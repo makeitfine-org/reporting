@@ -137,9 +137,9 @@ services:
 
   # ─── Application ─────────────────────────────────────────────────
   customer-service:
+    image: reporting/customer-service
     build:
       context: ./customer-service
-      dockerfile: Dockerfile
     container_name: customer-service
     ports:
       - "8081:8081"
@@ -162,9 +162,9 @@ services:
       start_period: 60s
 
   product-service:
+    image: reporting/product-service
     build:
       context: ./product-service
-      dockerfile: Dockerfile
     container_name: product-service
     ports:
       - "8083:8083"
@@ -187,9 +187,9 @@ services:
       start_period: 60s
 
   transaction-service:
+    image: reporting/transaction-service
     build:
       context: ./transaction-service
-      dockerfile: Dockerfile
     container_name: transaction-service
     ports:
       - "8082:8082"
@@ -222,9 +222,9 @@ services:
       start_period: 60s
 
   notification-service:
+    image: reporting/notification-service
     build:
       context: ./notification-service
-      dockerfile: Dockerfile
     container_name: notification-service
     ports:
       - "8084:8084"
@@ -252,10 +252,10 @@ services:
       start_period: 60s
 
   reporting-service:
+    image: reporting/reporting-service
     build:
       context: ./reporting-service
-      dockerfile: Dockerfile
-    container_name: reporting-service9
+    container_name: reporting-service
     ports:
       - "8080:8080"
     environment:
