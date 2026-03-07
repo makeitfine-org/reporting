@@ -1,3 +1,6 @@
+server:
+  port: ${REPORTING_SERVICE_PORT:8080}
+
 spring:
   application:
     name: reporting-service

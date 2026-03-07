@@ -1,0 +1,25 @@
+services:
+  customer-service:
+    ports:
+      - "${CUSTOMER_SERVICE_DEBUG_PORT}:5005"
+    command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar /app.jar
+
+  product-service:
+    ports:
+      - "${PRODUCT_SERVICE_DEBUG_PORT}:5005"
+    command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar /app.jar
+
+  transaction-service:
+    ports:
+      - "${TRANSACTION_SERVICE_DEBUG_PORT}:5005"
+    command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar /app.jar
+
+  notification-service:
+    ports:
+      - "${NOTIFICATION_SERVICE_DEBUG_PORT}:5005"
+    command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar /app.jar
+
+  reporting-service:
+    ports:
+      - "${REPORTING_SERVICE_DEBUG_PORT}:5005"
+    command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar /app.jar

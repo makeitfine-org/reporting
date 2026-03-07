@@ -9,11 +9,11 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
-    elasticsearch:
-      uris: ${ES_URIS:http://localhost:9200}
+  elasticsearch:
+    uris: ${ES_URIS:http://localhost:9200}
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
 
 logging:
   level:

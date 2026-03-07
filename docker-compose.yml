@@ -22,12 +22,12 @@ services:
         condition: service_healthy
     ports:
       - "9092:9092"
-      - "29092:29092"
+      - "${KAFKA_LOCALHOST_REDIRECT_PORT}:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${KAFKA_LOCALHOST_REDIRECT_PORT}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -51,7 +51,7 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - cluster.name=banking-es
     ports:
-      - "9200:9200"
+      - "${ES_LOCALHOST_REDIRECT_PORT}:9200"
       - "9300:9300"
     volumes:
       - es_data:/usr/share/elasticsearch/data
@@ -65,7 +65,7 @@ services:
     image: redis:7-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "${REDIS_LOCALHOST_REDIRECT_PORT}:6379"
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -79,16 +79,16 @@ services:
     image: postgres:15-alpine
     container_name: postgres
     environment:
-      POSTGRES_DB: reporting
-      POSTGRES_USER: reporting
-      POSTGRES_PASSWORD: reporting
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_LOCALHOST_REDIRECT_PORT}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./infra/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U reporting -d reporting" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -97,8 +97,8 @@ services:
     image: mailhog/mailhog:latest
     container_name: mailhog
     ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
+      - "${MAILHOG_SMTP_LOCALHOST_REDIRECT_PORT}:1025"   # SMTP
+      - "${MAILHOG_UI_LOCALHOST_REDIRECT_PORT}:8025"     # Web UI
 
   # ─── Observability ────────────────────────────────────────────────
   prometheus:
@@ -124,8 +124,8 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "3000:3000"
@@ -142,20 +142,20 @@ services:
       context: ./customer-service
     container_name: customer-service
     ports:
-      - "8081:8081"
+      - "${CUSTOMER_SERVICE_LOCALHOST_REDIRECT_PORT}:${CUSTOMER_SERVICE_PORT}"
     environment:
       SPRING_PROFILES_ACTIVE: local
-      POSTGRES_URL: jdbc:postgresql://postgres:5432/customers
-      POSTGRES_USER: customers
-      POSTGRES_PASSWORD: customers
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_URL: ${CUSTOMER_POSTGRES_URL}
+      POSTGRES_USER: ${CUSTOMER_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${CUSTOMER_POSTGRES_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8081/actuator/health/liveness" ]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:${CUSTOMER_SERVICE_PORT}/actuator/health/liveness" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -167,20 +167,20 @@ services:
       context: ./product-service
     container_name: product-service
     ports:
-      - "8083:8083"
+      - "${PRODUCT_SERVICE_LOCALHOST_REDIRECT_PORT}:${PRODUCT_SERVICE_PORT}"
     environment:
       SPRING_PROFILES_ACTIVE: local
-      POSTGRES_URL: jdbc:postgresql://postgres:5432/products
-      POSTGRES_USER: products
-      POSTGRES_PASSWORD: products
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_URL: ${PRODUCT_POSTGRES_URL}
+      POSTGRES_USER: ${PRODUCT_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${PRODUCT_POSTGRES_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8083/actuator/health/liveness" ]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:${PRODUCT_SERVICE_PORT}/actuator/health/liveness" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -192,17 +192,17 @@ services:
       context: ./transaction-service
     container_name: transaction-service
     ports:
-      - "8082:8082"
+      - "${TRANSACTION_SERVICE_LOCALHOST_REDIRECT_PORT}:${TRANSACTION_SERVICE_PORT}"
     environment:
       SPRING_PROFILES_ACTIVE: local
-      POSTGRES_URL: jdbc:postgresql://postgres:5432/transactions
-      POSTGRES_USER: transactions
-      POSTGRES_PASSWORD: transactions
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      CUSTOMER_SERVICE_URL: http://customer-service:8081
-      PRODUCT_SERVICE_URL: http://product-service:8083
+      POSTGRES_URL: ${TRANSACTION_POSTGRES_URL}
+      POSTGRES_USER: ${TRANSACTION_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${TRANSACTION_POSTGRES_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      CUSTOMER_SERVICE_URL: ${CUSTOMER_SERVICE_URL}
+      PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -215,7 +215,7 @@ services:
       product-service:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8082/actuator/health/liveness" ]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:${TRANSACTION_SERVICE_PORT}/actuator/health/liveness" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -227,16 +227,16 @@ services:
       context: ./notification-service
     container_name: notification-service
     ports:
-      - "8084:8084"
+      - "${NOTIFICATION_SERVICE_LOCALHOST_REDIRECT_PORT}:${NOTIFICATION_SERVICE_PORT}"
     environment:
       SPRING_PROFILES_ACTIVE: local
-      POSTGRES_URL: jdbc:postgresql://postgres:5432/notifications
-      POSTGRES_USER: notifications
-      POSTGRES_PASSWORD: notifications
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      CUSTOMER_SERVICE_URL: http://customer-service:8081
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
+      POSTGRES_URL: ${NOTIFICATION_POSTGRES_URL}
+      POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRES_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      CUSTOMER_SERVICE_URL: ${CUSTOMER_SERVICE_URL}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
     depends_on:
       postgres:
         condition: service_healthy
@@ -245,7 +245,7 @@ services:
       customer-service:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8084/actuator/health/liveness" ]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:${NOTIFICATION_SERVICE_PORT}/actuator/health/liveness" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -257,16 +257,16 @@ services:
       context: ./reporting-service
     container_name: reporting-service
     ports:
-      - "8080:8080"
+      - "${REPORTING_SERVICE_LOCALHOST_REDIRECT_PORT}:${REPORTING_SERVICE_PORT}"
     environment:
       SPRING_PROFILES_ACTIVE: local
-      POSTGRES_URL: jdbc:postgresql://postgres:5432/reporting
-      POSTGRES_USER: reporting
-      POSTGRES_PASSWORD: reporting
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      ES_URIS: http://elasticsearch:9200
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_URL: ${REPORTING_POSTGRES_URL}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      ES_URIS: ${ES_URIS}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
     depends_on:
       postgres:
         condition: service_healthy
@@ -277,7 +277,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8080/actuator/health/liveness" ]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:${REPORTING_SERVICE_PORT}/actuator/health/liveness" ]
       interval: 30s
       timeout: 10s
       retries: 5

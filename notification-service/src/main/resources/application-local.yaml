@@ -4,7 +4,7 @@ spring:
     username: notifications
     password: notifications
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:29092
   mail:
     host: localhost
     port: 1025
